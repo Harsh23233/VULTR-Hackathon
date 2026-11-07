@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cart · Northgate Furnishings</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="cart">
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 29V13a11 11 0 0 1 22 0v16h-5V13a6 6 0 0 0-12 0v16z" fill="#6E1F2E"/></svg><span>Northgate Furnishings</span></a>
+    <nav class="main-nav" aria-label="Main"><a href="index.html">Living</a><a href="index.html">Study</a><a href="index.html">Office</a><a href="index.html">Trade programme</a></nav>
+    <a class="cart-link" id="header-cart" href="cart.html">Cart</a>
+  </div>
+  <div class="promo"><div class="wrap">Complimentary white-glove delivery on every order</div></div>
+</header>
+<main class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="index.html">Home</a> / Cart</nav>
+  <h1>Your cart</h1>
+  <p class="empty" id="cart-empty" hidden>Your cart is empty. <a href="index.html">Browse task chairs</a>.</p>
+  <div id="cart-body" hidden>
+    <div class="panel">
+      <table class="cart">
+        <thead><tr><th>Item</th><th class="num">Unit price</th><th class="num">Quantity</th><th class="num">Line total</th></tr></thead>
+        <tbody><tr><td id="line-name"></td><td class="num" id="line-unit"></td><td class="num" id="line-qty"></td><td class="num" id="line-total"></td></tr></tbody>
+      </table>
+      <div class="totals">
+        <div><span>Subtotal</span><span id="subtotal"></span></div>
+        <div><span>Shipping</span><span id="shipping"></span></div>
+        <div class="grand"><span>Order total</span><span id="order-total"></span></div>
+      </div>
+      <div class="actions">
+        <form action="cart.html" method="get">
+          <input type="hidden" name="sku" value="EM-300">
+          <div><label for="update-qty">Quantity</label><input id="update-qty" name="qty" type="number" min="1" max="96"></div>
+          <button type="submit" class="button secondary">Update</button>
+        </form>
+        <a class="button secondary" href="index.html">Continue shopping</a>
+        <a class="button" id="to-request" href="request.html">Create purchase request</a>
+      </div>
+    </div>
+    <p class="notice">Business customers: submit a purchase request and our team will send a formal quote within one business day.</p>
+  </div>
+</main>
+<footer><div class="wrap">&copy; 2026 Northgate Furnishings. Fictional store used to test Glovebox agents. Prices in USD, excluding sales tax.</div></footer>
+<script src="store.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Request received · Ridgeline Office Supply</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="confirm">
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M2 26 L12 10 L18 19 L22 13 L30 26 Z" fill="#1F5D3A"/></svg><span>Ridgeline Office Supply</span></a>
+    <nav class="main-nav" aria-label="Main"><a href="index.html">Seating</a><a href="index.html">Desks</a><a href="index.html">Supplies</a><a href="index.html">Business accounts</a></nav>
+    <a class="cart-link" id="header-cart" href="cart.html">Cart</a>
+  </div>
+  <div class="promo"><div class="wrap">Free next-business-day delivery on orders over $500</div></div>
+</header>
+<main class="wrap">
+  <h1>Purchase request received</h1>
+  <p class="empty" id="confirm-missing" hidden>We could not find that request. <a href="index.html">Return to the store</a>.</p>
+  <div id="confirm-body" hidden>
+    <div class="panel">
+      <p>Your reference number</p>
+      <p class="confirm-ref" id="pr-ref"></p>
+      <div class="summary-line"><span>Item</span><span id="conf-product"></span></div>
+      <div class="summary-line"><span>Quantity</span><span id="conf-qty"></span></div>
+      <div class="summary-line"><strong>Order total</strong><strong id="conf-total"></strong></div>
+    </div>
+    <p class="notice">Our business team will email a formal quote to the work email on the request within one business day. Nothing has been charged.</p>
+  </div>
+</main>
+<footer><div class="wrap">&copy; 2026 Ridgeline Office Supply. Fictional store used to test Glovebox agents. Prices in USD, excluding sales tax.</div></footer>
+<script src="store.js"></script>
+</body>
+</html>

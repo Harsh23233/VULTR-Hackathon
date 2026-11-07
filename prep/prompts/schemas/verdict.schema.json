@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["passed", "observed", "mismatch", "confidence"],
+  "properties": {
+    "passed": { "type": "boolean" },
+    "observed": { "type": "string", "description": "What is actually visible, quoting numbers and text" },
+    "mismatch": { "type": "string", "description": "What differs from the expected outcome; empty if nothing" },
+    "confidence": { "type": "string", "enum": ["low", "medium", "high"] }
+  }
+}

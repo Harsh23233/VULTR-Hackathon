@@ -1,0 +1,9 @@
+# Control plane (orchestrator) and sandbox host (runner). Python 3.11+.
+fastapi==0.159.1
+uvicorn==0.54.0
+httpx==0.28.1
+pydantic==2.14.1
+cryptography==50.0.2
+python-multipart==0.0.32
+# Sandbox host only
+microsandbox==0.7.11

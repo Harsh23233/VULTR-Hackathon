@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["goal_summary", "steps", "suspicious_content"],
+  "properties": {
+    "goal_summary": { "type": "string" },
+    "steps": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "intent", "inputs", "allow_domains", "needs_api", "expected_output", "irreversible", "depends_on"],
+        "properties": {
+          "id": { "type": "string", "description": "s1, s2, ..." },
+          "kind": { "type": "string", "enum": ["code", "browser"] },
+          "intent": { "type": "string" },
+          "inputs": { "type": "array", "items": { "type": "string" } },
+          "allow_domains": { "type": "array", "items": { "type": "string" } },
+          "needs_api": { "type": ["string", "null"] },
+          "expected_output": { "type": "string" },
+          "irreversible": { "type": "boolean" },
+          "depends_on": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "suspicious_content": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "excerpt", "why"],
+        "properties": {
+          "source": { "type": "string" },
+          "excerpt": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    }
+  }
+}

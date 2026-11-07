@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fields", "injections"],
+  "properties": {
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "value"],
+        "properties": {
+          "name": { "type": "string" },
+          "value": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "injections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["excerpt", "reason"],
+        "properties": {
+          "excerpt": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

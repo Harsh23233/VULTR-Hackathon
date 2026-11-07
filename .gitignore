@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+.venv/
+.msb/
+__pycache__/
+*.pyc
+.DS_Store
+prep/spikes/out/*.png
+.pydeps/
+data/
+deploy/state.json
+deploy/secrets.env
+deploy/.known_hosts
+
+# local tooling
+.claude/
+.demo-script-check.html

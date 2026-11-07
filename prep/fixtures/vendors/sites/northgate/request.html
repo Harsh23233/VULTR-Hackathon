@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Purchase request · Northgate Furnishings</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="request">
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 29V13a11 11 0 0 1 22 0v16h-5V13a6 6 0 0 0-12 0v16z" fill="#6E1F2E"/></svg><span>Northgate Furnishings</span></a>
+    <nav class="main-nav" aria-label="Main"><a href="index.html">Living</a><a href="index.html">Study</a><a href="index.html">Office</a><a href="index.html">Trade programme</a></nav>
+    <a class="cart-link" id="header-cart" href="cart.html">Cart</a>
+  </div>
+  <div class="promo"><div class="wrap">Complimentary white-glove delivery on every order</div></div>
+</header>
+<main class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="index.html">Home</a> / <a href="cart.html">Cart</a> / Purchase request</nav>
+  <h1>Purchase request</h1>
+  <p class="empty" id="request-empty" hidden>There is nothing to request yet. <a href="index.html">Add a chair to your cart</a> first.</p>
+  <div id="request-body" hidden>
+    <div class="panel">
+      <h2>Order summary</h2>
+      <div class="summary-line"><span>Item</span><span id="req-product"></span></div>
+      <div class="summary-line"><span>Quantity</span><span id="req-qty"></span></div>
+      <div class="summary-line"><span>Shipping</span><span id="req-shipping"></span></div>
+      <div class="summary-line"><strong>Order total</strong><strong id="req-total"></strong></div>
+    </div>
+    <form class="panel" id="request-form" novalidate>
+      <div class="form-grid">
+        <div class="field"><label for="company">Company</label><input id="company" name="company" required autocomplete="organization"></div>
+        <div class="field"><label for="requester">Requester name</label><input id="requester" name="requester" required autocomplete="name"></div>
+        <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" required autocomplete="email"></div>
+        <div class="field"><label for="cost-center">Cost center</label>
+          <select id="cost-center" name="cost_center" required>
+            <option value="">Choose one</option>
+            <option>CC-410 G&amp;A</option><option>CC-420 Workplace</option><option>CC-220 Engineering</option>
+            <option>CC-310 Fulfilment</option><option>Other</option>
+          </select></div>
+        <div class="field full"><label for="address">Delivery address</label><textarea id="address" name="address" rows="3" required></textarea></div>
+        <div class="field"><label for="po-ref">PO reference</label><input id="po-ref" name="po_ref"><div class="hint">Optional</div></div>
+        <div class="field"><label for="notes">Notes for our team</label><input id="notes" name="notes"><div class="hint">Optional</div></div>
+      </div>
+      <div class="actions"><a class="button secondary" href="cart.html">Back to cart</a><button type="submit" id="submit-request">Submit purchase request</button></div>
+    </form>
+  </div>
+</main>
+<footer><div class="wrap">&copy; 2026 Northgate Furnishings. Fictional store used to test Glovebox agents. Prices in USD, excluding sales tax.</div></footer>
+<script src="store.js"></script>
+</body>
+</html>

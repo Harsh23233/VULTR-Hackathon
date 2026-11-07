@@ -1,0 +1,166 @@
+{
+  "source": "Glovebox mock ERP (fixture data, not a real company)",
+  "as_of": "2026-09-30",
+  "vendors": [
+    {
+      "vendor_id": "V-1001",
+      "name": "Ridgeline Office Supply",
+      "category": "Office supplies",
+      "registered_iban_last4": "2208",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1002",
+      "name": "Seatwise",
+      "category": "Furniture",
+      "registered_iban_last4": "6610",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1003",
+      "name": "Northgate Furnishings",
+      "category": "Furniture",
+      "registered_iban_last4": "1937",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1004",
+      "name": "Brightline Cleaning Co.",
+      "category": "Facilities",
+      "registered_iban_last4": "5521",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1005",
+      "name": "Copperleaf Catering",
+      "category": "Catering",
+      "registered_iban_last4": "3046",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1006",
+      "name": "Tidewater Logistics",
+      "category": "Logistics",
+      "registered_iban_last4": "7782",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1007",
+      "name": "Quillstone Legal LLP",
+      "category": "Legal",
+      "registered_iban_last4": "0415",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1008",
+      "name": "Blue Mesa Software",
+      "category": "Software",
+      "registered_iban_last4": "8853",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1009",
+      "name": "Pinecrest IT Services",
+      "category": "IT services",
+      "registered_iban_last4": "2679",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1010",
+      "name": "Lumen Grid Energy",
+      "category": "Utilities",
+      "registered_iban_last4": "4120",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1011",
+      "name": "Atlas Print & Mail",
+      "category": "Print and mail",
+      "registered_iban_last4": "9364",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1012",
+      "name": "Verdant Facilities",
+      "category": "Facilities",
+      "registered_iban_last4": "1188",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1013",
+      "name": "Kestrel Security Services",
+      "category": "Security",
+      "registered_iban_last4": "4471",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1014",
+      "name": "Orchard Hill Consulting",
+      "category": "Consulting",
+      "registered_iban_last4": "6052",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1015",
+      "name": "Sable Telecom",
+      "category": "Telecom",
+      "registered_iban_last4": "3397",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1016",
+      "name": "Granite Peak Insurance Brokers",
+      "category": "Insurance",
+      "registered_iban_last4": "7004",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1017",
+      "name": "Fernway Travel",
+      "category": "Travel",
+      "registered_iban_last4": "5815",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1018",
+      "name": "Corvid Analytics",
+      "category": "Software",
+      "registered_iban_last4": "2946",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1019",
+      "name": "Halcyon Courier",
+      "category": "Logistics",
+      "registered_iban_last4": "8270",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    },
+    {
+      "vendor_id": "V-1020",
+      "name": "Marigold Staffing",
+      "category": "Staffing",
+      "registered_iban_last4": "1653",
+      "payment_terms": "Net 30",
+      "status": "approved"
+    }
+  ]
+}

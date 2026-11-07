@@ -1,0 +1,77 @@
+{
+  "run": "4450cf",
+  "when": "2026-10-30T00:31:12+0530",
+  "host": "Darwin 27.0.0 arm64",
+  "python": "3.11.9",
+  "microsandbox": "0.7.11",
+  "image": "python:3.12-slim",
+  "results": [
+    {
+      "check": "boot",
+      "result": "PASS",
+      "evidence": "guest 'Linux 6.12.113 gbx-spike-boot-cold-4450cf' vs host 'Darwin 27.0.0'; cold boot 174 ms (includes image pull), warm boot 154 ms",
+      "ms": 515
+    },
+    {
+      "check": "offline",
+      "result": "PASS",
+      "evidence": "https://example.com from an offline VM: connection refused or unresolved (URLError: <urlopen error [Errno -2] Name or service not known>)",
+      "ms": 380
+    },
+    {
+      "check": "metadata",
+      "result": "PASS",
+      "evidence": "example.com -> 200; 169.254.169.254 -> denied by policy (HTTP 403 network_policy_denied); 10.0.0.1 -> denied by policy (HTTP 403 network_policy_denied)",
+      "ms": 529
+    },
+    {
+      "check": "allowlist",
+      "result": "PASS",
+      "evidence": "example.com -> 200; example.org -> connection refused or unresolved (URLError: <urlopen error [Errno 111] Connection refused>)",
+      "ms": 576
+    },
+    {
+      "check": "memory",
+      "result": "PASS",
+      "evidence": "exit 1; MemoryError; VM still answering afterwards: True",
+      "ms": 260
+    },
+    {
+      "check": "timeout",
+      "result": "PASS",
+      "evidence": "infinite loop stopped by the 5 s timeout after 5.1 s",
+      "ms": 5221
+    },
+    {
+      "check": "forkbomb",
+      "result": "PASS",
+      "evidence": "bomb reaped at the 10 s timeout; VM answered in 36 ms. Linux skips NPROC for root, so untrusted code must run as a non-root user",
+      "ms": 10286
+    },
+    {
+      "check": "diskfill",
+      "result": "PASS",
+      "evidence": "dd exit -1; file stopped at 64 MiB; host free space change +1 MiB",
+      "ms": 301
+    },
+    {
+      "check": "secrets",
+      "result": "PASS",
+      "evidence": "guest sees '$MSB_DEMO_TOKEN'; allowed host received the real value: True; leak to example.com -> VM killed mid-request (MicrosandboxError) after 74 ms; VM terminated: True",
+      "ms": 1911
+    },
+    {
+      "check": "lifecycle",
+      "result": "PASS",
+      "evidence": "/tmp/implant in the next task's VM: absent",
+      "ms": 512
+    }
+  ],
+  "timings": {
+    "cold_boot_ms": 174,
+    "warm_boot_ms": 154
+  },
+  "notes": [
+    "secrets: exec after the violation raised SandboxNotRunningError. An ephemeral VM is removed as soon as it is terminated, so stream SYSTEM logs while it runs to keep evidence."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "decision_order": ["block_and_replan", "require_approval", "quarantine_content", "auto"],
+  "gates": [
+    { "then": "require_approval", "any": [{ "q": "irreversible", "gte": 0.5 }, { "q": "credential_use", "gte": 0.3 }] },
+    { "then": "block_and_replan", "any": [{ "q": "off_task", "gte": 0.7 }] },
+    { "then": "quarantine_content", "any": [{ "q": "injection", "gte": 0.6 }] }
+  ],
+  "budgets": { "max_steps": 25, "max_retries_per_step": 3, "max_mission_usd": 0.25 },
+  "profiles": {
+    "code": { "cpus": 1, "memory_mib": 512, "exec_timeout_s": 60, "max_lifetime_s": 600, "user": "nobody", "egress": "none" },
+    "browser": { "cpus": 2, "memory_mib": 2048, "action_timeout_s": 30, "max_lifetime_s": 900, "egress": "mission_allowlist" },
+    "redteam": { "cpus": 1, "memory_mib": 512, "exec_timeout_s": 30, "max_lifetime_s": 120, "user": "nobody", "egress": "none" }
+  },
+  "always_deny": ["metadata (169.254.169.254)", "private ranges", "host", "the VPC range"],
+  "secret_violation_action": "block-and-terminate"
+}
