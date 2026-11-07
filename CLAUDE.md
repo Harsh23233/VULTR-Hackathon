@@ -18,6 +18,7 @@ Setup (Apple Silicon Mac or Linux with KVM, Python 3.11+):
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 python3 scripts/fetch_pydeps.py    # guest packages: .pydeps/<arch> (pandas etc.) and .pydeps/<arch>-browser (Playwright)
 python3 scripts/init_env.py        # writes .env with a random RUNNER_TOKEN and RECEIPT_SIGNING_KEY
+python3 scripts/set_key.py VULTR_INFERENCE_API_KEY   # prompts for the key with hidden input; also sets GLOVEBOX_INFERENCE=vultr
 ```
 
 Run locally: two processes, runner first. Neither reloads on change, so restart after editing Python (static files in apps/web are served with no-cache).
@@ -44,7 +45,7 @@ MSB_HOME=$PWD/.msb .venv/bin/python deploy/smoke_test.py                       #
 
 The live checks assert the claims the demo makes. With scripted models they check exact numbers (e.g. the three vendor quotes); with live models some checks are looser.
 
-Deploy to Vultr (account key in `VULTR_API_KEY`; state in deploy/state.json):
+Deploy to Vultr (account key in `VULTR_API_KEY`, from the shell or `.env` via `scripts/set_key.py VULTR_API_KEY`; state in deploy/state.json):
 
 ```bash
 python3 deploy/vultr.py plan | up --ssh-from <ip>/32 | push [--scripted] | status | ssh control|sandbox | down --yes

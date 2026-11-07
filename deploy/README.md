@@ -13,7 +13,7 @@ Both hosts sit in Seattle (`sea`), where most Vultr Serverless Inference models 
 
 1. **Vultr account** with the hackathon credits applied.
 2. **Account API key:** Vultr console › Account › API › Enable API. Under *Access Control*, add this machine's public IP.
-3. **Inference key** in `.env`: `VULTR_INFERENCE_API_KEY=...` (Vultr console › Serverless › Inference › your subscription), and set `GLOVEBOX_INFERENCE=vultr`.
+3. **Inference key** in `.env`: run `python3 scripts/set_key.py VULTR_INFERENCE_API_KEY` and paste the key from Vultr console › Serverless › Inference › your subscription. It also sets `GLOVEBOX_INFERENCE=vultr`.
 4. **SSH key** at `~/.ssh/id_ed25519.pub`. If you don't have one: `ssh-keygen -t ed25519`.
 
 The account API key is only read from your shell (or `.env`); it never goes to the servers. The servers get the inference key (control plane only), a runner token and the receipt signing key.
@@ -22,7 +22,7 @@ The account API key is only read from your shell (or `.env`); it never goes to t
 
 ```bash
 python3 deploy/vultr.py plan                          # check plans, region and cost; no key needed
-export VULTR_API_KEY=...                              # account API key
+python3 scripts/set_key.py VULTR_API_KEY              # account API key, saved in .env (or: export VULTR_API_KEY=...)
 python3 deploy/vultr.py up --ssh-from <your-ip>/32    # 3-5 minutes
 python3 deploy/vultr.py push                          # first run 5-8 minutes; prints https://glovebox.<ip>.sslip.io
 ```

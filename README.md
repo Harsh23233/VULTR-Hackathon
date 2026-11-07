@@ -2,6 +2,8 @@
 
 **Real work. Zero blast radius.**
 
+![Glovebox: real work, zero blast radius. AI agents in disposable microVMs on Vultr](docs/images/cover.png)
+
 Glovebox lets an AI agent write and run code on your company's data, and drive a real browser on outside websites, without touching your systems. Every step and every click is risk-scored by a decision model, runs in a fresh microVM on Vultr with no network beyond what it needs and no real credentials, is checked by a second model, and ends up in a hash-chained, Ed25519-signed receipt that anyone can verify. Anything irreversible waits for a human.
 
 Built for the Vultr Agent Rush hackathon, Blast Radius Zero track.
@@ -105,7 +107,7 @@ Every id is an environment variable (`MODEL_*`). An unknown id would silently fa
 
 ```bash
 python3 deploy/vultr.py plan                          # plans, region, cost: about $0.09/hour for both hosts
-export VULTR_API_KEY=...                              # Vultr account API key
+python3 scripts/set_key.py VULTR_API_KEY              # Vultr account API key, saved in .env (or: export VULTR_API_KEY=...)
 python3 deploy/vultr.py up --ssh-from <your-ip>/32    # VPC, firewall groups, control plane + VX1 sandbox host
 python3 deploy/vultr.py push                          # code, services, HTTPS; prints the public URL
 ```
@@ -120,7 +122,7 @@ Needs an Apple Silicon Mac or Linux with KVM, and Python 3.11+.
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 python3 scripts/fetch_pydeps.py        # pandas etc. for code VMs, Playwright for browser VMs (mounted read-only)
 python3 scripts/init_env.py            # writes .env with random tokens
-# put VULTR_INFERENCE_API_KEY in .env and keep GLOVEBOX_INFERENCE=vultr
+python3 scripts/set_key.py VULTR_INFERENCE_API_KEY   # paste your Vultr inference key (hidden); switches to live models
 python3 scripts/dev.py runner          # sandbox host API on 127.0.0.1:8081
 python3 scripts/dev.py orchestrator    # console on http://127.0.0.1:8000
 ```
@@ -149,7 +151,7 @@ apps/web/           console (no build step)
 prep/               test data, mock vendor sites, spikes and prompts (see prep/README.md)
 scripts/            setup and dev launchers
 tests/              unit and live checks
-docs/images/        images the missions produced, used in this README
+docs/               the cover image and its source, and images the missions produced
 PLAN.md             build spec and timeline
 ```
 
