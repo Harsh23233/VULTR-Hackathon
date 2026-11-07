@@ -16,3 +16,4 @@ deploy/.known_hosts
 # local tooling
 .claude/
 .demo-script-check.html
+NEXT_STEPS.md
