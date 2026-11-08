@@ -10,9 +10,10 @@ Built for the Vultr Agent Rush hackathon, Blast Radius Zero track.
 
 ## Demo
 
-- **Live console:** [demo URL]. Press **Try to break it** to run the Red Team yourself.
+- **Replay:** https://harsh23233.github.io/VULTR-Hackathon/replay/ plays recorded Red Team, Operator and Analyst runs in the real console, and checks every signed receipt in your browser. They ran on real Microsandbox microVMs with scripted AI answers: the hackathon's Vultr gift codes ran out before we could deploy.
 - **Video:** [video link]
 - **Deck:** [deck PDF]
+- **Run it yourself:** see [Run it locally](#run-it-locally); with Vultr keys, [deploy to Vultr](#deploy-to-vultr) takes two commands.
 
 ## The Analyst mission: code on your data
 
@@ -157,7 +158,7 @@ PLAN.md             build spec and timeline
 
 ## Status
 
-Working: the Analyst and Operator missions end to end on real microVMs (Chromium included), the Red Team (12 of 12 contained), the live console with approvals, signed receipts with verify and tamper checks, and one-command deployment tooling for Vultr (smoke-tested in an Ubuntu 24.04 microVM). Next: live runs on Vultr models and the first deployment to Vultr.
+Working: the Analyst and Operator missions end to end on real microVMs (Chromium included), the Red Team (12 of 12 contained), the live console with approvals, signed receipts with verify and tamper checks, and one-command deployment tooling for Vultr (smoke-tested in an Ubuntu 24.04 microVM). Not done: live runs on Vultr models and the deployment to Vultr. The hackathon's Vultr gift codes ran out before we could redeem one, so the video and the replay use scripted AI answers on real microVMs; the code and deploy tooling for Vultr are complete.
 
 ## License
 

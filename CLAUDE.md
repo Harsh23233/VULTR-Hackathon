@@ -28,7 +28,7 @@ python3 scripts/dev.py runner        # sandbox host API on 127.0.0.1:8081
 python3 scripts/dev.py orchestrator  # console on http://127.0.0.1:8000, mock ERP on :8090, mock vendor sites on :8101-8103
 ```
 
-`scripts/dev.py` loads `.env`, sets `MSB_HOME=.msb` and runs uvicorn from `.venv`. The runner pulls the ~2 GB Playwright image on first start; `/v1/health` reports `browser: ready` when Operator missions can run.
+`scripts/dev.py` loads `.env`, sets `MSB_HOME=.msb` and runs uvicorn from `.venv`. `python3 scripts/export_replay.py` rebuilds the static replay in docs/replay (GitHub Pages) from saved missions in data/archive/replay-source; it patches a copy of apps/web/app.js and adds apps/web/replay.js, so keep its patch strings in step with app.js. The runner pulls the ~2 GB Playwright image on first start; `/v1/health` reports `browser: ready` when Operator missions can run.
 
 Tests. There is no pytest and no linter; each test file is a script:
 

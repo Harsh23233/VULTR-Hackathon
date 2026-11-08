@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glovebox replay</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='4' width='28' height='24' rx='5' fill='%23131B18' stroke='%234FC3B3' stroke-width='2.5'/%3E%3Ccircle cx='11' cy='17' r='4' fill='none' stroke='%234FC3B3' stroke-width='2.5'/%3E%3Ccircle cx='21' cy='17' r='4' fill='none' stroke='%234FC3B3' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,600..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="28" height="24" rx="5"/><circle cx="11" cy="17" r="4"/><circle cx="21" cy="17" r="4"/></svg>
+    <span><b>Glovebox</b><small>Real work. Zero blast radius.</small></span>
+  </a>
+  <div class="chips" id="chips"></div>
+</header>
+<div class="testmode" id="testmode" hidden>
+  <b>Test mode.</b> Real microVMs, a real browser, real attacks and signed receipts; only the AI model answers are scripted. With a Vultr key, every model call goes to Vultr Serverless Inference.
+</div>
+
+<main class="grid">
+  <aside class="left">
+    <section class="panel">
+      <h2>New mission</h2>
+      <div class="seg" role="radiogroup" aria-label="Mission type">
+        <button type="button" role="radio" aria-checked="true" data-template="analyst"><span>Analyst</span><small>Writes and runs code on your data</small></button>
+        <button type="button" role="radio" aria-checked="false" data-template="operator"><span>Operator</span><small>Drives a browser on vendor sites</small></button>
+      </div>
+      <label for="goal">Goal</label>
+      <textarea id="goal" rows="3" maxlength="600"></textarea>
+      <div data-for="analyst">
+        <div class="file">
+          <span class="file-name">vendor_payments_q3.csv</span>
+          <span class="file-meta">401 payments · supplier export · untrusted</span>
+        </div>
+        <label class="toggle" for="erp"><input type="checkbox" id="erp" checked>
+          <span>Call the ERP API with a placeholder credential</span></label>
+      </div>
+      <div data-for="operator" hidden>
+        <div class="file">
+          <span class="file-name">3 approved vendor sites</span>
+          <span class="file-meta" id="vendor-list">untrusted websites</span>
+        </div>
+      </div>
+      <label class="toggle red" for="attack"><input type="checkbox" id="attack">
+        <span id="attack-label">Red team: also run what a fooled model would have run</span></label>
+      <button class="primary" id="run" type="button">Run mission</button>
+      <p class="hint" id="runhint"></p>
+    </section>
+    <section class="panel">
+      <h2>Red Team</h2>
+      <p class="blurb">Fire 12 attacks at the sandbox, from fork bombs and credential theft to escape probes and prompt injection, and watch what stops each one.</p>
+      <button class="danger" id="redteam" type="button">Try to break it</button>
+    </section>
+    <section class="panel">
+      <h2>Recent missions</h2>
+      <ol class="recent" id="recent"></ol>
+    </section>
+  </aside>
+
+  <section class="center" id="timeline" aria-live="polite"></section>
+
+  <aside class="right">
+    <section class="panel">
+      <h2>Blast radius</h2>
+      <div class="blast" id="blast"></div>
+    </section>
+    <section class="panel">
+      <h2>Sandbox</h2>
+      <div id="sandbox"></div>
+      <canvas id="spark" width="640" height="120" aria-label="CPU and memory of the running sandbox"></canvas>
+      <div class="legend"><span class="cpu">CPU %</span><span class="mem">Memory of limit</span></div>
+    </section>
+    <section class="panel">
+      <h2>Containment</h2>
+      <ol class="feed" id="feed"></ol>
+    </section>
+    <section class="panel">
+      <h2>Models on Vultr</h2>
+      <div id="cost"></div>
+    </section>
+  </aside>
+</main>
+
+<dialog id="approval">
+  <form method="dialog">
+    <h2>Approval needed</h2>
+    <div id="approval-body"></div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost" id="reject">Reject</button>
+      <button type="button" class="primary" id="approve">Approve</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="replay.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

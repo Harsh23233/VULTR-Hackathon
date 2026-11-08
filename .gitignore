@@ -8,7 +8,7 @@ __pycache__/
 .DS_Store
 prep/spikes/out/*.png
 .pydeps/
-data/
+/data/
 deploy/state.json
 deploy/secrets.env
 deploy/.known_hosts
@@ -18,3 +18,4 @@ deploy/.known_hosts
 .demo-script-check.html
 NEXT_STEPS.md
 SUBMISSION.md
+FALLBACK.md
