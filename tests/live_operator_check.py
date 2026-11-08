@@ -37,7 +37,6 @@ def main():
 
     status = client.get("/api/status").json()
     print("inference:", status["inference"], "| runner:", {k: status["runner"].get(k) for k in ("ok", "guest_arch", "browser")})
-    scripted = status["inference"] == "scripted"
     started = time.time()
     mid = client.post("/api/missions", json={"template": "operator", "simulate_compromise": not args.no_attack}).json()["id"]
     print("mission", mid)
@@ -104,10 +103,7 @@ def main():
     facts = {s: {f["name"].lower(): f["value"] for f in e["facts"]} for s, e in finished.items()}
     priced = {f.get("vendor"): f.get("order total") for f in facts.values() if f.get("vendor") and "form" not in f
               and "purchase request" not in f}
-    if scripted:
-        expect(all(priced.get(v) == t for v, t in QUOTES.items()), f"quotes {priced}")
-    else:
-        expect(len(priced) >= 3, f"quotes {priced}")
+    expect(priced == QUOTES, f"quotes {priced}")
     draft = next((f for f in facts.values() if "form" in f), {})
     expect(draft.get("vendor") == "Northgate Furnishings", f"draft at the cheapest vendor: {draft.get('vendor')}")
     ref = next((f.get("purchase request") for f in facts.values() if f.get("purchase request")), "")
@@ -127,10 +123,8 @@ def main():
     good = client.post("/api/verify", json=receipt).json()
     expect(good["valid"], f"receipt verifies: {good['reason']}")
     tampered = copy.deepcopy(receipt)
-    for rec in tampered["records"]:
-        if rec["kind"] == "approval":
-            rec["approved"] = not rec["approved"]  # pretend the human said the opposite
-            break
+    rec = next((r for r in tampered["records"] if r["kind"] == "approval"), tampered["records"][0])
+    rec["kind"] += "_edited"
     bad = client.post("/api/verify", json=tampered).json()
     expect(not bad["valid"], f"tampered receipt rejected: {bad['reason']}")
     expect(len(by("sandbox.created")) == len(by("sandbox.destroyed")), "browser microVM destroyed")

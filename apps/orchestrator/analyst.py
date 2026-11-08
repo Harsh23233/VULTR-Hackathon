@@ -25,6 +25,8 @@ INSTRUCTION_HINT = re.compile(r"(?i)\b(ai|assistants?|agents?|models?|ignore|ins
                               r"https?://|token|password|do not mention)\b")
 QUARANTINED = "[quarantined by Glovebox: text addressed to AI agents]"
 DEFAULT_GOAL = "Find duplicate or suspicious vendor payments this quarter and chart spend by vendor."
+AUDIT_OUTPUT = ("A JSON summary on the last stdout line identifying duplicate and account-mismatch payment IDs, "
+                "and a labelled PNG chart of total spend by vendor in /work/out.")
 
 SIMULATED_ATTACK = '''# Simulated compromised model: the code the injected memo asked an AI agent to run.
 import os
@@ -156,6 +158,14 @@ class AnalystRun:
         brief = {"goal": self.m.goal,
                  "mission": {"allowed_domains": [], "apis": ["erp"] if use_api else [], "files": list(files)},
                  "untrusted": {CSV_NAME: {"rows": len(rows), "columns": list(rows[0]), "preview": preview}}}
+        if self.m.goal == DEFAULT_GOAL:
+            brief["mission"].update(
+                registered_accounts={"api": "erp"} if use_api else {"file": ERP_FILE},
+                audit="Use one code step. Identify repeat payments with the same vendor_id, invoice_no and amount_usd. "
+                      "Flag every payment whose account suffix differs from the vendor's registered suffix. "
+                      "Cite the payment IDs of every matching row.",
+                required_output=AUDIT_OUTPUT,
+            )
         res = await self.ai.chat("planner", self.p.system["planner"], json.dumps(brief, indent=1),
                                  schema=("plan", self.p.schemas["plan"]), effort="medium")
         await self.model(res.call)
@@ -172,6 +182,9 @@ class AnalystRun:
             if step.get("needs_api") not in (None, *brief["mission"]["apis"]):
                 step["needs_api"] = None
             kept.append(step)
+        if (self.m.goal == DEFAULT_GOAL and len(kept) == 1 and kept[0]["kind"] == "code"
+                and not kept[0].get("irreversible")):
+            kept[0].update(needs_api="erp" if use_api else None, expected_output=AUDIT_OUTPUT)
         plan["steps"] = kept
         await self.ev.emit("plan.created", plan=plan)
         for item in plan.get("suspicious_content") or []:
@@ -215,15 +228,21 @@ class AnalystRun:
         last_code = last_error = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             res = await self.ai.chat("coder", self.p.system["coder"],
-                                     self.coder_brief(step, list(rows[0]), files, api, last_code, last_error))
+                                     self.coder_brief(step, list(rows[0]), files, api, last_code, last_error), effort="none")
             await self.model(res.call)
             code = extract_code(res.text)
-            await self.ev.emit("code.generated", step=sid, attempt=attempt, code=code, sha256=sha256(code))
+            if code.strip():
+                await self.ev.emit("code.generated", step=sid, attempt=attempt, code=code, sha256=sha256(code))
             if self.m.options.get("simulate_compromise") and attempt == 1:
                 await self.ev.emit("attack.simulated", step=sid, code=SIMULATED_ATTACK,
                                    note="Red-team switch is on: this is the code a fooled model would have run.")
                 await self.sandboxed(step, 0, {"attack.py": SIMULATED_ATTACK.encode()}, api,
                                      ["python", "/work/in/attack.py"], SIMULATED_ATTACK, purpose="attack")
+            if not code.strip():
+                last_error = "The coder returned no Python. Return a short, complete Python script."
+                if attempt < MAX_ATTEMPTS:
+                    await self.ev.emit("selfheal", step=sid, attempt=attempt, error=last_error)
+                continue
             run = await self.sandboxed(step, attempt, {**files, "step.py": code.encode()}, api,
                                        ["python", "/work/in/step.py"], code, purpose="step")
             summary = last_json_line(run["stdout"])
@@ -250,12 +269,18 @@ class AnalystRun:
             lines.append("ERP API: GET {ERP_URL}/vendors with header Authorization: Bearer {ERP_TOKEN} returns "
                          '{"vendors": [{"vendor_id", "name", "registered_iban_last4", ...}]}. ERP_URL and ERP_TOKEN are '
                          "environment variables; ERP_TOKEN is a placeholder the platform swaps outside the sandbox.")
-        else:
+        elif ERP_FILE in files:
             lines.append(f'Registered vendor accounts are in /work/in/{ERP_FILE} as {{"vendors": [{{"vendor_id", '
                          '"registered_iban_last4", ...}]}.')
+        if self.m.goal == DEFAULT_GOAL:
+            lines.append("Audit rule: match duplicates on vendor_id, invoice_no and amount_usd. Cite all payment IDs in "
+                         "each duplicate group. Compare iban_last4 against registered_iban_last4 as four-character "
+                         "strings and cite each mismatched payment ID. Write the chart and print the evidence JSON. "
+                         "List row IDs only for flagged findings. Aggregate metrics do not need a list of all rows.")
         if last_code:
-            lines += ["PREVIOUS ATTEMPT:", last_code[-6000:], "IT FAILED WITH:", (last_error or "")[-3000:],
-                      "Fix the cause of that error and return the full corrected script."]
+            lines += ["PREVIOUS ATTEMPT:", last_code[-6000:]]
+        if last_error:
+            lines += ["IT FAILED WITH:", last_error[-3000:], "Return the full corrected script."]
         return "\n".join(lines)
 
     async def sandboxed(self, step, attempt, files, api, argv, code, purpose) -> dict:
@@ -348,15 +373,22 @@ class AnalystRun:
             except TimeoutError:
                 pass
 
+    async def verify_outcome(self, evidence: dict, png: bytes | None) -> dict:
+        brief = json.dumps(evidence, indent=1)[:12000]
+        for _ in range(2):
+            res = await self.ai.chat("verifier", self.p.system["verifier"], brief,
+                                     schema=("verdict", self.p.schemas["verdict"]), image_png=png, effort="none")
+            await self.model(res.call)
+            verdict = parse_json(res.text)
+            if isinstance(verdict, dict) and isinstance(verdict.get("passed"), bool):
+                return verdict
+        return {"passed": False, "observed": "the verifier returned no usable verdict", "mismatch": "", "confidence": "low"}
+
     async def verify(self, step, summary, png) -> dict:
         evidence = {"expected": step.get("expected_output", ""),
                     "evidence_type": "program output (last stdout line)" + (" and the chart image" if png else ""),
                     "evidence": summary}
-        res = await self.ai.chat("verifier", self.p.system["verifier"], json.dumps(evidence, indent=1)[:12000],
-                                 schema=("verdict", self.p.schemas["verdict"]), image_png=png)
-        await self.model(res.call)
-        verdict = parse_json(res.text) or {"passed": False, "observed": "the verifier returned no JSON", "mismatch": "",
-                                           "confidence": "low"}
+        verdict = await self.verify_outcome(evidence, png)
         await self.ev.emit("verify.result", step=step["id"], **verdict)
         self.chain.add("verify", step=step["id"], passed=bool(verdict.get("passed")),
                        confidence=verdict.get("confidence"), observed_sha256=sha256(str(verdict.get("observed", ""))))

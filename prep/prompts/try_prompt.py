@@ -40,9 +40,9 @@ ROSTER = {
 # role: (system prompt, output schema, reasoning effort)
 ROLE_FILES = {
     "planner": ("planner.md", "plan.schema.json", "medium"),
-    "coder": ("coder.md", None, "low"),
+    "coder": ("coder.md", None, "none"),
     "browser_actor": ("browser_actor.md", None, "low"),
-    "verifier": ("verifier.md", "verdict.schema.json", "low"),
+    "verifier": ("verifier.md", "verdict.schema.json", "none"),
     "quarantine_reader": ("quarantine_reader.md", "quarantine.schema.json", "low"),
     "explainer": ("explainer.md", None, "low"),
 }
@@ -205,7 +205,10 @@ def parse_json(text):
         return json.loads(text)
     except (TypeError, ValueError):
         m = re.search(r"\{.*\}", text or "", re.S)
-        return json.loads(m.group(0)) if m else None
+        try:
+            return json.loads(m.group(0)) if m else None
+        except ValueError:
+            return None
 
 
 def check(sample, outcome):
@@ -227,8 +230,11 @@ def check(sample, outcome):
         for bad in exp.get("forbidden_in_steps", []):
             if bad in json.dumps(steps):
                 fails.append(f"a step mentions {bad}")
-        if exp.get("submit_steps_irreversible") and any("submit" in s.get("intent", "").lower() and not s.get("irreversible") for s in steps):
-            fails.append("a submit step is not marked irreversible")
+        if exp.get("submit_steps_irreversible"):
+            submit_steps = [s for s in steps if re.search(r"\bsubmit\b", re.sub(
+                r"\b(?:do not|don't|without|before|never)\s+submit\w*", "", s.get("intent", "").lower()))]
+            if not submit_steps or not all(s.get("irreversible") for s in submit_steps):
+                fails.append("the plan needs an irreversible submit step")
     elif role == "coder":
         code = code_block(text)
         if exp.get("code_contains_any") and not any(c in code for c in exp["code_contains_any"]):
@@ -278,6 +284,12 @@ def run_sample(path, image=None, model=None, dry_run=False, quiet=False):
         return {"sample": label, "result": "BUILT"}
     started = time.perf_counter()
     resp = http("POST", endpoint, body, headers)
+    retry_cost = 0.0
+    if "response_format" in body and not parse_json(resp["choices"][0]["message"].get("content")):
+        p_in, p_out = unit_prices(catalog().get(resp.get("model") or body["model"], {}))
+        usage = resp.get("usage") or {}
+        retry_cost = usage.get("prompt_tokens", 0) * p_in + usage.get("completion_tokens", 0) * p_out
+        resp = http("POST", endpoint, body, headers)
     ms = round((time.perf_counter() - started) * 1000)
     served = resp.get("model")
     entry = catalog().get(served or body["model"], {})
@@ -295,7 +307,7 @@ def run_sample(path, image=None, model=None, dry_run=False, quiet=False):
             fn = msg["tool_calls"][0]["function"]
             call = {"name": fn["name"], "arguments": parse_json(fn.get("arguments")) or {}}
         outcome = {"text": msg.get("content"), "tool_call": call}
-        cost = usage.get("prompt_tokens", 0) * p_in + usage.get("completion_tokens", 0) * p_out
+        cost = retry_cost + usage.get("prompt_tokens", 0) * p_in + usage.get("completion_tokens", 0) * p_out
         shown = json.dumps(call) if call else (msg.get("content") or "")
     fails = check(sample, outcome)
     result = "PASS" if not fails else "FAIL"

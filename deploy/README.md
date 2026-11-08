@@ -87,6 +87,8 @@ If the API route is blocked:
 
 The runner listens only on the VPC address. UFW allows port 8081 only from the VPC subnet, and the Vultr firewall group exposes nothing but SSH. On the control plane, the mock ERP API and vendor sites listen on the VPC address only, and UFW admits them only from the VPC subnet; browser microVMs may reach those three vendor ports and nothing else. Password logins are disabled by cloud-init; restrict SSH further with `--ssh-from`.
 
+Code microVMs use `host.microsandbox.internal:8090` for the mock ERP. Microsandbox substitutes the token for that hostname, and a socket bound to loopback on the sandbox host forwards the request to the ERP on the control plane's VPC address.
+
 On its first start the runner pulls the Playwright browser image (about 2 GB) in the background; `/v1/health` reports `browser: ready` when Operator missions can run.
 
 ## Smoke test without Vultr

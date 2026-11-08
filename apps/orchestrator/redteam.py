@@ -283,7 +283,7 @@ class RedTeamRun(AnalystRun):
 
     async def attack_lateral(self):
         runner = urlparse(self.s.runner_url)
-        targets = [f"http://{self.s.erp_guest_host}:8000/api/status", f"http://{runner.hostname}:{runner.port or 80}/v1/health",
+        targets = [f"http://{self.s.vendor_guest_host}:8000/api/status", f"http://{runner.hostname}:{runner.port or 80}/v1/health",
                    "http://10.0.0.1/", "http://192.168.1.1/", "http://172.17.0.1:2375/version"]
         async with self.vm_slots:
             info = await self.vm("lateral", network="api")

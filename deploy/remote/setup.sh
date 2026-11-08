@@ -68,6 +68,23 @@ if [ "$ROLE" = sandbox ]; then
     echo "RUNNER_BIND is empty; it must be this host's VPC address" >&2
     exit 1
   fi
+  if [ -n "${ERP_UPSTREAM:-}" ]; then
+    # Microsandbox substitutes the token for the guest's special host name. Keep the
+    # forwarding socket on loopback and send it only to the mock ERP on the VPC.
+    cat > /etc/systemd/system/glovebox-erp-relay.socket <<UNIT
+[Socket]
+ListenStream=127.0.0.1:${ERP_GUEST_PORT}
+
+[Install]
+WantedBy=sockets.target
+UNIT
+    cat > /etc/systemd/system/glovebox-erp-relay.service <<UNIT
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd ${ERP_UPSTREAM}
+DynamicUser=yes
+NoNewPrivileges=true
+UNIT
+  fi
   cat > /etc/systemd/system/$UNIT.service <<UNIT
 [Unit]
 Description=Glovebox runner (sandbox host API, one microVM per task)
@@ -162,6 +179,11 @@ ufw status | sed -n '1,20p'
 
 log "services"
 systemctl daemon-reload
+if [ "$ROLE" = sandbox ] && [ -n "${ERP_UPSTREAM:-}" ]; then
+  systemctl stop glovebox-erp-relay.service
+  systemctl enable glovebox-erp-relay.socket >/dev/null 2>&1
+  systemctl restart glovebox-erp-relay.socket
+fi
 systemctl enable "$UNIT" >/dev/null 2>&1
 systemctl restart "$UNIT"
 if [ "$ROLE" = control ]; then

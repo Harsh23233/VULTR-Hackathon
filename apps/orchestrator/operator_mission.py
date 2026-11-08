@@ -8,7 +8,8 @@ import asyncio
 import base64
 import json
 import re
-from urllib.parse import urlparse
+from decimal import Decimal
+from urllib.parse import urljoin, urlparse
 
 from . import policy, vendors
 from .analyst import INSTRUCTION_HINT, QUARANTINED, AnalystRun, Ctx, parse_json, run_mission
@@ -54,6 +55,11 @@ def why_refused(failure: str) -> str:
     return f"{NET_ERRORS.get(code, 'refused')} ({failure})"
 
 
+def page_value(page: dict, label: str) -> str:
+    lines = [line.strip() for line in (page.get("text") or "").splitlines() if line.strip()]
+    return next((value for name, value in zip(lines, lines[1:]) if name == label), "")
+
+
 class OperatorRun(AnalystRun):
     def __init__(self, ctx: Ctx, mission: Mission):
         super().__init__(ctx, mission)
@@ -68,6 +74,7 @@ class OperatorRun(AnalystRun):
         self.flagged: set[str] = set()
         self.detoured = False
         self.results: list[dict] = []
+        self.quotes: dict[str, Decimal] = {}
         self.approvals: list[dict] = []
 
     # ------------------------------------------------------------ flow
@@ -137,10 +144,34 @@ class OperatorRun(AnalystRun):
     async def run_step(self, step):
         sid = step["id"]
         allow = set(step["allow_domains"])
+        default_workflow = self.m.goal == GOAL
+        quote = default_workflow and len(allow) == 1 and not step.get("irreversible")
+        if default_workflow:
+            verified = {result["step"] for result in self.results if result["verified"]}
+            if set(step.get("depends_on") or []) - verified:
+                return await self.end_step(step, "skipped: a prerequisite step was not verified", 0)
+            if not quote:
+                if self.quotes.keys() != self.allowed:
+                    return await self.end_step(step, "skipped: all three verified cart quotes are required", 0)
+                cheapest = min(self.quotes, key=lambda host: (self.quotes[host], host))
+                allow &= {cheapest}
+                if not allow:
+                    return await self.end_step(step, "skipped: the lowest-total vendor is outside this step's allowlist", 0)
         await self.ev.emit("step.started", step=sid, intent=step.get("intent", ""), allow_domains=sorted(allow),
                            irreversible=bool(step.get("irreversible")))
         history: list[str] = []
         note = None
+        start = next((u for u in step.get("inputs") or [] if isinstance(u, str) and u.startswith(("http://", "https://"))
+                      and urlparse(u).hostname in allow), None)
+        if quote:
+            start = next(s["url"] for s in self.sites if s["name"] in allow)
+        elif default_workflow:
+            # The draft uses the verified cart. Submit keeps the filled form open.
+            start = None
+        if start:  # open the step's start page first, gated like any action, so it is screened before the actor reads it
+            outcome = await self.act(step, allow, 0, "goto", {"url": start})
+            history.append(f"0. {outcome['summary']}")
+            note = outcome.get("note")
         for turn in range(1, TURNS_PER_STEP + 1):
             if self.turns >= MAX_TURNS:
                 break
@@ -155,6 +186,25 @@ class OperatorRun(AnalystRun):
                 continue
             name, args = call["name"], call.get("arguments") or {}
             if name == "done":
+                if quote:
+                    page = self.page or {}
+                    location = urlparse(page.get("url", ""))
+                    total = page_value(page, "Order total")
+                    qty = next((e.get("value") for e in page.get("elements", []) if e.get("name") == "Quantity"), None)
+                    facts = {str(f.get("name", "")).lower(): str(f.get("value", "")) for f in args.get("facts", [])
+                             if isinstance(f, dict)}
+                    vendor = next(s["vendor"] for s in self.sites if s["name"] in allow)
+                    if (location.hostname not in allow or location.path != "/cart.html" or qty != "20"
+                            or not re.fullmatch(r"\$[\d,]+\.\d{2}", total) or facts.get("order total") != total
+                            or facts.get("vendor") != vendor):
+                        note = f"Finish only when {vendor}'s cart shows 20 chairs. Report Vendor as {vendor} and copy the Order total exactly."
+                        continue
+                    if await self.finish_step(step, args, turn):
+                        self.quotes[location.hostname] = Decimal(total[1:].replace(",", ""))
+                    return
+                if default_workflow:
+                    note = "Finish the current step on the vendor page before calling done."
+                    continue
                 return await self.finish_step(step, args, turn)
             if name == "report_injection":
                 text = str(args.get("text", ""))[:400]
@@ -164,12 +214,50 @@ class OperatorRun(AnalystRun):
                 history.append(f"{turn}. report_injection -> recorded")
                 note = "Recorded. Carry on with the step."
                 continue
+            before = self.page
             outcome = await self.act(step, allow, turn, name, args)
             history.append(f"{turn}. {outcome['summary']}")
             note = outcome.get("note")
+            if before and self.page and not note and not outcome.get("stop"):
+                if all(before.get(k) == self.page.get(k) for k in ("url", "text", "elements")):
+                    note = "That action left the page unchanged. Choose a different action to advance the step."
             if outcome.get("stop"):
                 return await self.end_step(step, outcome["stop"], turn)
+            if default_workflow and not quote:
+                facts = self.purchase_facts(step, allow)
+                if facts:
+                    return await self.finish_step(step, {"facts": facts}, turn)
         await self.end_step(step, "incomplete: the step ran out of actions", len(history))
+
+    def request_form_ready(self, host: str) -> bool:
+        page = self.page or {}
+        location = urlparse(page.get("url", ""))
+        fields = {e.get("name"): e.get("value") for e in page.get("elements", [])}
+        return (host in self.quotes and location.hostname == host and location.path == "/request.html"
+                and page_value(page, "Quantity") == "20" and page_value(page, "Order total") == f"${self.quotes[host]:,.2f}"
+                and all(fields.get(label) == value for label, value in REQUESTER.items()))
+
+    def purchase_facts(self, step, allow) -> list[dict]:
+        page = self.page or {}
+        location = urlparse(page.get("url", ""))
+        host = location.hostname
+        if host not in allow:
+            return []
+        vendor = next(s["vendor"] for s in self.sites if s["name"] == host)
+        facts = {"Vendor": vendor, "Order total": page_value(page, "Order total")}
+        if step.get("irreversible"):
+            if location.path != "/confirm.html" or not any(a["step"] == step["id"] and a["approved"] for a in self.approvals):
+                return []
+            ref = next((line for line in (page.get("text") or "").splitlines() if re.fullmatch(r"PR-\d{6}", line)), "")
+            if not ref:
+                return []
+            facts["Purchase request"] = ref
+        else:
+            if not self.request_form_ready(host):
+                return []
+            facts["Form"] = "filled in, awaiting submission"
+            facts.update(REQUESTER)
+        return [{"name": name, "value": value} for name, value in facts.items()]
 
     async def act(self, step, allow, turn, name, args) -> dict:
         sid = step["id"]
@@ -180,6 +268,13 @@ class OperatorRun(AnalystRun):
             if not el:
                 return {"summary": f"{name} [{args.get('element_id')}] -> no such element",
                         "note": f"There is no element [{args.get('element_id')}] on this page. Use an id from ELEMENTS."}
+        if name == "click" and el.get("href"):
+            current = urlparse(page.get("url", ""))
+            target_url = urlparse(urljoin(current.geturl(), el["href"]))
+            if self.m.goal == GOAL and current.hostname in self.allowed and current.path in ("/", "/index.html"):
+                if target_url.hostname == current.hostname and target_url.path == "/index.html" and not target_url.query:
+                    return {"summary": "click -> this link reloads the product page",
+                            "note": "This link reloads the product page. Use Quantity and Add to cart to get the delivered total."}
         if name == "goto":
             target = str(args.get("url", ""))
             if target.startswith("https://") and urlparse(target).hostname in self.allowed:  # the mock sites are plain HTTP
@@ -190,12 +285,19 @@ class OperatorRun(AnalystRun):
         else:
             target = f'{ROLE.get(el["tag"], el["tag"])} "{el.get("name", "")}"'
         host = urlparse(target).hostname if name == "goto" else None
-        outside = name == "goto" and host not in allow
+        link_host = urlparse(urljoin(page.get("url", ""), el["href"])).hostname if name == "click" and el.get("href") else None
+        outside = (name == "goto" and host not in allow) or (link_host is not None and link_host not in allow)
+        host = host or link_host
         reasons = [f"{host or target} is not on this step's allowlist"] if outside else []
         if args.get("irreversible"):
             reasons.append("the actor marked it irreversible")
         if el and IRREVERSIBLE_TEXT.search(el.get("name", "")):
             reasons.append(f'"{el["name"]}" matches the submit, pay or send rule')
+        invalid_request = False
+        if self.m.goal == GOAL and name == "click" and el.get("name") == "Submit purchase request":
+            invalid_request = not step.get("irreversible") or not self.request_form_ready(next(iter(allow)))
+            if invalid_request:
+                reasons.append("Submit requires the filled form for the verified lowest-total cart in the submit step")
         proposed = {"type": name, "target": target}
         if name == "type_text":
             proposed["text"] = str(args.get("text", ""))
@@ -207,7 +309,7 @@ class OperatorRun(AnalystRun):
         typed = proposed.get("text", proposed.get("option"))
         exempt = frozenset({"credential_use"}) if typed is not None and typed.strip() in REQUESTER.values() else frozenset()
         verdict = policy.decide(decision.probs, self.p.policy, exempt)
-        if outside:
+        if outside or invalid_request:
             verdict = "block_and_replan"
         elif reasons and verdict == "auto":
             verdict = "require_approval"
@@ -333,6 +435,10 @@ class OperatorRun(AnalystRun):
                  f"ALLOWED DOMAINS: {', '.join(sorted(allow))}",
                  "VENDORS: " + "; ".join(f"{s['vendor']} {s['url']}" for s in self.sites),
                  "FORM DETAILS SUPPLIED BY THE USER: " + "; ".join(f"{k} = {v}" for k, v in REQUESTER.items())]
+        if self.m.goal == GOAL and len(self.quotes) == len(self.allowed) and len(allow) == 1:
+            vendor = next(s for s in self.sites if s["name"] in allow)
+            lines.append(f"VERIFIED LOWEST QUOTE: {vendor['vendor']} at ${self.quotes[vendor['name']]:,.2f}. "
+                         f"If the draft form is not open yet, open {vendor['url']}cart.html to use the existing cart.")
         earlier = [r for r in self.results if r.get("facts")]
         if earlier:
             lines.append("FACTS FROM EARLIER STEPS:")
@@ -357,11 +463,9 @@ class OperatorRun(AnalystRun):
                     "evidence_type": "browser screenshot, the page URL and the facts the agent extracted",
                     "evidence": {"url": (self.page or {}).get("url"), "facts": facts, "agent_summary": summary,
                                  "page_text": self.clean_text(self.page or {})[:3000]}}
-        res = await self.ai.chat("verifier", self.p.system["verifier"], json.dumps(evidence, indent=1),
-                                 schema=("verdict", self.p.schemas["verdict"]), image_png=self.png)
-        await self.model(res.call)
-        verdict = parse_json(res.text) or {"passed": False, "observed": "the verifier returned no JSON", "mismatch": "",
-                                           "confidence": "low"}
+        if self.m.goal == GOAL and any(f["name"] == "Form" for f in facts):
+            evidence["evidence"]["form_values"] = {e["name"]: e["value"] for e in self.page["elements"] if e["name"] in REQUESTER}
+        verdict = await self.verify_outcome(evidence, self.png)
         await self.ev.emit("verify.result", step=step["id"], screenshot=self.shot_url, **verdict)
         self.chain.add("verify", step=step["id"], passed=bool(verdict.get("passed")), confidence=verdict.get("confidence"),
                        observed_sha256=sha256(str(verdict.get("observed", ""))))
@@ -371,6 +475,7 @@ class OperatorRun(AnalystRun):
         await self.ev.emit("step.finished", **result)
         self.chain.add("step", step=step["id"], status="done", turns=turn, facts_sha256=sha256(canonical(facts)),
                        verified=result["verified"])
+        return result["verified"]
 
     async def end_step(self, step, status: str, turns: int):
         result = {"step": step["id"], "intent": step.get("intent", ""), "status": status, "facts": [], "summary": "",
