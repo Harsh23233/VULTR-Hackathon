@@ -79,7 +79,7 @@ def main():
         raise SystemExit("There is no replay archive yet. Export missions first.")
 
     html = patched((WEB / "index.html").read_text(), [
-        ('href="/static/style.css?v=4"', 'href="style.css?v=4"'),
+        ('href="/static/style.css?v=5"', 'href="style.css?v=5"'),
         ('<script src="/static/app.js?v=4"></script>', '<script src="replay.js?v=4"></script>\n<script src="app.js?v=4"></script>'),
         ('class="brand" href="/"', 'class="brand" href="../"'),
         ("<title>Glovebox</title>", "<title>Glovebox replay</title>"),
