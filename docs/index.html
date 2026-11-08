@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1312">
+  <meta name="description" content="Run an AI agent in a disposable microVM on Vultr. Explore sandboxed code, browser approval, and signed receipts.">
+  <meta property="og:title" content="Glovebox · AI agents in disposable microVMs">
+  <meta property="og:description" content="Sandboxed Python, human-approved browser actions, and signed evidence on Vultr.">
+  <meta property="og:image" content="https://harsh23233.github.io/VULTR-Hackathon/images/cover.png">
+  <title>Glovebox · AI agents in disposable microVMs</title>
+  <link rel="stylesheet" href="project.css">
+</head>
+<body>
+  <header class="shell top">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="4" width="28" height="24" rx="5"/><circle cx="11" cy="17" r="4"/><circle cx="21" cy="17" r="4"/></svg>
+      Glovebox
+    </a>
+    <nav aria-label="Project navigation">
+      <a href="#missions">Missions</a>
+      <a href="#walkthrough">Video</a>
+      <a href="https://github.com/Harsh23233/VULTR-Hackathon">GitHub <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Vultr Agent Rush / Blast Radius Zero</p>
+        <h1>AI agents in disposable microVMs</h1>
+        <p class="intro">Glovebox audits vendor payments and operates a real browser with restricted network access. It pauses before submitting a purchase request and seals each run in a signed receipt.</p>
+        <div class="actions">
+          <a class="button primary" href="https://glovebox.149-28-8-192.sslip.io/">Run live on Vultr <span aria-hidden="true">↗</span></a>
+          <a class="button secondary" href="replay/">Explore the replay <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <figure class="preview">
+        <figcaption><span class="eyebrow">Recorded on Vultr</span><strong>12 of 12 attacks contained</strong></figcaption>
+        <img src="images/console-redteam.webp" width="1120" height="630" alt="Glovebox Red Team console showing 12 of 12 attacks contained">
+      </figure>
+    </section>
+
+    <section class="section" id="missions" aria-labelledby="missions-title">
+      <p class="eyebrow">Mission archive</p>
+      <h2 id="missions-title">Inspect a finished run</h2>
+      <div class="missions">
+        <a class="mission" href="replay/#msn_53aaa32b89ac">
+          <span class="eyebrow">01 / Sandboxed Python</span>
+          <h3>Analyst</h3>
+          <p>Audit 401 vendor payments and see the sandbox block attempts to reach cloud metadata and an exfiltration host.</p>
+          <span class="card-link">View the audit →</span>
+        </a>
+        <a class="mission" href="replay/#msn_17637b8f5675">
+          <span class="eyebrow">02 / Sandboxed browser</span>
+          <h3>Operator</h3>
+          <p>Compare three carts for 20 chairs and inspect the $7,340 purchase request held for approval.</p>
+          <span class="card-link">View the purchase request →</span>
+        </a>
+        <a class="mission" href="replay/#msn_01f2279b8dca">
+          <span class="eyebrow">03 / Containment tests</span>
+          <h3>Red Team</h3>
+          <p>Review the evidence from 12 attacks and see what happens when a signed receipt is edited.</p>
+          <span class="card-link">View the attack results →</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="section media" id="walkthrough" aria-labelledby="video-title">
+      <div>
+        <p class="eyebrow">2 min 39 sec</p>
+        <h2 id="video-title">Demo walkthrough</h2>
+        <p class="intro">See the three missions on Vultr, from blocked requests to a receipt that fails verification after an edit.</p>
+        <a class="button secondary" href="demo/Glovebox.pdf">Open the slide deck <span aria-hidden="true">↗</span></a>
+      </div>
+      <video controls playsinline preload="none" poster="images/cover.png" aria-label="Glovebox demo walkthrough">
+        <source src="demo/Glovebox.mp4" type="video/mp4">
+        <a href="demo/Glovebox.mp4">Download the demo video</a>
+      </video>
+    </section>
+  </main>
+  <footer class="shell footer">
+    <p>Built for Vultr Agent Rush</p>
+    <a href="https://github.com/Harsh23233/VULTR-Hackathon#how-vultr-powers-glovebox">Architecture and setup ↗</a>
+  </footer>
+</body>
+</html>

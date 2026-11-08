@@ -10,10 +10,11 @@ Built for the Vultr Agent Rush hackathon, Blast Radius Zero track.
 
 ## Demo
 
+- **Project site:** [Glovebox on GitHub Pages](https://harsh23233.github.io/VULTR-Hackathon/) includes the recorded missions, video and deck.
 - **Live:** [Glovebox on Vultr](https://glovebox.149-28-8-192.sslip.io/) runs Analyst, Operator and Red Team with Vultr Serverless Inference.
 - **Video:** [Narrated live-demo walkthrough (MP4)](docs/demo/Glovebox.mp4)
 - **Deck:** [Hackathon presentation (PDF)](docs/demo/Glovebox.pdf)
-- **Replay:** [Archived test runs](https://harsh23233.github.io/VULTR-Hackathon/replay/) use scripted model responses and real Microsandbox microVMs. The browser can verify each archived receipt.
+- **Replay:** [Recorded Vultr missions](https://harsh23233.github.io/VULTR-Hackathon/replay/) can be played or opened at their final state. The browser can verify each archived receipt. Earlier test runs are labeled Scripted.
 - **Run it yourself:** see [Run it locally](#run-it-locally); with Vultr keys, [deploy to Vultr](#deploy-to-vultr) takes two commands.
 
 ## The Analyst mission: code on your data

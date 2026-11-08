@@ -12,9 +12,11 @@ const ROLE = { planner: "Planner", coder: "Coder", verifier: "Verifier", explain
 const QUESTION = { irreversible: "Irreversible", credential_use: "Uses a credential", off_task: "Off task", injection: "Injection" };
 const SHORT_Q = { irreversible: "irreversible", credential_use: "credential", off_task: "off task", injection: "injection" };
 const DECISION = { auto: ["ok", "auto"], require_approval: ["warn", "needs a human"], block_and_replan: ["bad", "blocked"] };
-const ATTACK_LABEL = { analyst: "Red team: also run what a fooled model would have run",
-  operator: "Red team: also try the detour Northgate's hidden note asks for" };
+const ATTACK_LABEL = { analyst: "Simulate an attempt to steal the ERP token",
+  operator: "Simulate the hidden note's browser detour" };
 const TERMINAL = new Set(["mission.finished", "mission.failed"]);
+const MISSION_NAME = { analyst: "Analyst", operator: "Operator", redteam: "Red Team" };
+const REPLAY = Boolean(window.GLOVEBOX_REPLAY);
 
 let status = null;
 let events = [];
@@ -25,10 +27,12 @@ let current = null;
 let receiptChecks = [];
 let template = "analyst";
 let autoScroll = false;
+let playback = false;
+let streamIssue = "";
 const open = new Set();
 
 async function getJSON(url, opts) {
-  if (window.GLOVEBOX_REPLAY) return replayGet(url, opts);
+  if (REPLAY) return replayGet(url, opts);
   const r = await fetch(url, opts);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
   return r.json();
@@ -47,38 +51,57 @@ async function boot() {
     status = await getJSON("/api/status");
   } catch (e) {
     $("#chips").innerHTML = `<span class="chip"><span class="dot bad"></span>Control plane unreachable</span>`;
+    $("#timeline").innerHTML = `<div class="empty"><h1>Console unavailable</h1><p>Reload this page to reconnect.</p></div>`;
     return;
   }
   renderChips();
   const vendors = (status.templates || []).find((t) => t.id === "operator")?.vendors || [];
   $("#vendor-list").textContent = vendors.map((x) => x.vendor).join(" · ") + " · untrusted websites";
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => pickTemplate(b.dataset.template));
+  $(".seg").addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? "analyst" : e.key === "End" ? "operator" : template === "analyst" ? "operator" : "analyst";
+    pickTemplate(next);
+    $(`.seg button[data-template="${next}"]`).focus();
+  });
   pickTemplate("analyst");
   $("#testmode").hidden = status.inference !== "scripted";
-  if (window.GLOVEBOX_REPLAY) replayBanner();
-  $("#run").addEventListener("click", start);
-  $("#redteam").addEventListener("click", startRedTeam);
+  if (REPLAY) replayBanner(status);
+  if (matchMedia("(max-width: 740px)").matches) $(".history").open = false;
+  setLaunchDisabled(false);
+  $("#run").addEventListener("click", () => start(template));
+  $("#redteam").addEventListener("click", () => start("redteam"));
   $("#approve").addEventListener("click", () => answerApproval(true));
   $("#reject").addEventListener("click", () => answerApproval(false));
+  $("#skip-replay").addEventListener("click", () => es?.finish?.());
+  for (const button of document.querySelectorAll("[data-jump]")) {
+    button.addEventListener("click", () => {
+      autoScroll = false;
+      document.getElementById(button.dataset.jump)?.focus({ preventScroll: true });
+      document.getElementById(button.dataset.jump)?.scrollIntoView({ block: "start" });
+    });
+  }
   document.addEventListener("toggle", (e) => {
     const d = e.target;
     if (d.tagName === "DETAILS" && d.dataset.key) d.open ? open.add(d.dataset.key) : open.delete(d.dataset.key);
   }, true);
   window.addEventListener("hashchange", () => {
     const id = location.hash.slice(1);
-    if (id.startsWith("msn_") && id !== current) {
+    if (id !== current && (!id || id.startsWith("msn_"))) {
       autoScroll = false;
-      follow(id);
+      follow(id || null);
+      if (id) $("#mission-toolbar").scrollIntoView({ block: "start" });
     }
   });
   await loadRecent();
   const id = location.hash.slice(1);
   id.startsWith("msn_") ? follow(id) : render();
-  setInterval(refreshChips, 15000);
+  if (!REPLAY) setInterval(refreshChips, 15000);
 }
 
 function renderChips() {
-  if (window.GLOVEBOX_REPLAY) { $("#chips").innerHTML = replayChips(status); return; }
+  if (REPLAY) { $("#chips").innerHTML = replayChips(status); return; }
   const roster = status.roster || [];
   const ok = roster.filter((r) => r.ok).length;
   const runner = status.runner || {};
@@ -88,7 +111,6 @@ function renderChips() {
       ? `Vultr Serverless Inference <b>${ok}/${roster.length} roles ready</b>` : `Scripted models <b>test mode</b>`}</span>`,
     `<span class="chip"><span class="dot ${runner.ok ? "ok" : "bad"}"></span>Sandbox host <b>${runner.ok
       ? `microVMs · ${esc(runner.guest_arch)}` : "unreachable"}</b>${runner.ok ? ` · ${runner.running} running` : ""}</span>`,
-    `<span class="chip">Receipts <b>Ed25519 · ${esc(status.signing_key?.key_id)}</b></span>`,
   ].join("");
 }
 
@@ -103,55 +125,57 @@ async function loadRecent() {
   let list = [];
   try { list = await getJSON("/api/missions"); } catch { /* empty */ }
   $("#recent").innerHTML = list.length
-    ? list.map((m) => `<li><a href="#${esc(m.id)}" class="${m.id === current ? "on" : ""}">${esc(m.goal.slice(0, 72))}
-        <small>${esc(m.status)} · ${esc(new Date(m.created_at).toLocaleTimeString())} · ${usd(m.cost_usd || 0)}</small></a></li>`).join("")
+    ? list.map((m) => `<li><a href="#${esc(m.id)}" ${m.id === current ? 'aria-current="true"' : ""}>
+        <span class="recent-label"><b>${esc(MISSION_NAME[m.template] || "Mission")}</b><small>${REPLAY ? (m.inference === "vultr" ? "Vultr" : "Scripted") : esc(m.status)}</small></span>
+        <span class="recent-goal">${esc(m.goal)}</span></a></li>`).join("")
     : `<li class="muted">No missions yet.</li>`;
 }
 
 function pickTemplate(id) {
   template = id;
-  for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-checked", String(b.dataset.template === id));
+  for (const b of document.querySelectorAll(".seg button")) {
+    b.setAttribute("aria-checked", String(b.dataset.template === id));
+    b.tabIndex = b.dataset.template === id ? 0 : -1;
+  }
   for (const el of document.querySelectorAll("[data-for]")) el.hidden = el.dataset.for !== id;
   $("#goal").value = (status.templates || []).find((t) => t.id === id)?.default_goal || status.default_goal;
   $("#attack-label").textContent = ATTACK_LABEL[id];
+  $("#run").textContent = `${REPLAY ? "Play" : "Run"} ${MISSION_NAME[id]}`;
 }
 
-async function start() {
+function setLaunchDisabled(disabled) {
+  $("#run").disabled = disabled;
+  $("#redteam").disabled = disabled;
+}
+
+async function start(kind) {
   $("#runhint").textContent = "";
-  $("#run").disabled = true;
+  setLaunchDisabled(true);
   try {
+    const options = kind === "redteam" ? {} : { goal: $("#goal").value, erp_api: $("#erp").checked,
+      simulate_compromise: $("#attack").checked };
     const { id } = await getJSON("/api/missions", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ template, goal: $("#goal").value, erp_api: $("#erp").checked, simulate_compromise: $("#attack").checked }),
+      body: JSON.stringify({ template: kind, ...options }),
     });
     location.hash = id;
     autoScroll = true;
-    follow(id);
+    follow(id, REPLAY);
+    $("#mission-toolbar").scrollIntoView({ block: "start" });
   } catch (e) {
     $("#runhint").textContent = e.message;
-    $("#run").disabled = false;
+    setLaunchDisabled(false);
   }
 }
 
-async function startRedTeam() {
-  $("#runhint").textContent = "";
-  $("#redteam").disabled = true;
-  try {
-    const { id } = await getJSON("/api/missions", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ template: "redteam" }),
-    });
-    location.hash = id;
-    autoScroll = true;
-    follow(id);
-  } catch (e) {
-    $("#runhint").textContent = e.message;
-    $("#redteam").disabled = false;
-  }
-}
-
-function follow(id) {
+function follow(id, play = false) {
   if (es) es.close();
+  es = null;
+  if ($("#approval").open) $("#approval").close();
+  pendingApproval = null;
   current = id;
+  streamIssue = "";
+  playback = play;
   events = [];
   seen = new Set();
   metrics = [];
@@ -159,8 +183,13 @@ function follow(id) {
   open.clear();
   render();
   loadRecent();
-  es = window.GLOVEBOX_REPLAY ? replaySource(id) : new EventSource(`/api/missions/${encodeURIComponent(id)}/events`);
-  es.onmessage = (msg) => {
+  setLaunchDisabled(Boolean(id));
+  if (!id) return;
+  const source = REPLAY ? replaySource(id, play) : new EventSource(`/api/missions/${encodeURIComponent(id)}/events`);
+  es = source;
+  let frame = null;
+  source.onmessage = (msg) => {
+    if (source !== es) return;
     const e = JSON.parse(msg.data);
     if (seen.has(e.seq)) return;
     seen.add(e.seq);
@@ -173,20 +202,38 @@ function follow(id) {
     const end = () => $("#timeline").getBoundingClientRect().bottom - window.innerHeight;
     const stick = autoScroll && end() <= 400;
     events.push(e);
-    render();
-    if (stick && end() > 0) window.scrollBy(0, end() + 24);
-    if (e.type === "approval.requested" && !window.GLOVEBOX_REPLAY) showApproval(e);
-    if (e.type === "approval.resolved" && $("#approval").open) $("#approval").close();
+    streamIssue = "";
+    if (REPLAY && e.type === "mission.started" && e.template in ATTACK_LABEL) pickTemplate(e.template);
+    if (frame === null) frame = requestAnimationFrame(() => {
+      frame = null;
+      if (source !== es) return;
+      render();
+      if (stick && autoScroll && end() > 0) window.scrollBy(0, end() + 24);
+    });
+    if (e.type === "approval.requested" && !REPLAY) showApproval(e);
+    if (e.type === "approval.resolved" && e.approval === pendingApproval) {
+      pendingApproval = null;
+      if ($("#approval").open) $("#approval").close();
+    }
     if (TERMINAL.has(e.type)) {
-      es.close();
-      $("#run").disabled = false;
-      $("#redteam").disabled = false;
+      source.close();
+      playback = false;
+      setLaunchDisabled(false);
       loadRecent();
-      refreshChips();
+      if (!REPLAY) refreshChips();
     }
   };
-  es.onerror = () => {
-    if (events.some((e) => TERMINAL.has(e.type))) es.close();
+  source.onerror = () => {
+    if (source !== es) return;
+    if (REPLAY || source.readyState === EventSource.CLOSED) {
+      streamIssue = REPLAY ? "Recording unavailable" : "Mission unavailable";
+      playback = false;
+      source.close();
+      setLaunchDisabled(false);
+    } else {
+      streamIssue = "Reconnecting…";
+    }
+    render();
   };
 }
 
@@ -264,7 +311,10 @@ function derive(list) {
         break;
       }
       case "actor.reported": op(v, e.step).actions.push({ report: e }); break;
-      case "step.finished": Object.assign(op(v, e.step), { result: e, state: e.status }); break;
+      case "step.finished":
+        Object.assign(op(v, e.step), { result: e, state: e.status });
+        if (!v.opOrder.includes(e.step)) v.opOrder.push(e.step);
+        break;
       case "code.generated": attempt(v, e.step, e.attempt).code = e; break;
       case "sandbox.created":
         if (e.purpose === "attack") v.attackSandbox = e;
@@ -306,8 +356,10 @@ const callMeta = (calls) => calls.length
 
 function render() {
   const v = derive(events);
-  $("#timeline").innerHTML = !current ? emptyState() : v.attacks ? redteamView(v)
+  $("#timeline").innerHTML = !current ? emptyState() : streamIssue && !events.length
+    ? `<article class="card"><h3>${esc(streamIssue)}</h3><p>Choose a recent mission or start another run.</p></article>` : v.attacks ? redteamView(v)
     : v.started?.template === "operator" ? operatorView(v) : timeline(v);
+  renderMissionToolbar(v);
   for (const d of document.querySelectorAll("#timeline details[data-key]")) d.open = open.has(d.dataset.key);
   for (const b of document.querySelectorAll("#timeline [data-approve]")) {
     b.addEventListener("click", () => answerApproval(b.dataset.approve === "1", b.dataset.id));
@@ -320,23 +372,38 @@ function render() {
   drawSpark();
 }
 
-function card(stage, title, body, { cls = "", meta = "", tag = "" } = {}) {
-  return `<article class="card ${cls}"><div class="card-head"><h3><span class="stage">${esc(stage)}</span>${title}</h3>${tag}</div>
+function renderMissionToolbar(v) {
+  $("#mission-toolbar").hidden = !current;
+  if (!current) return;
+  $("#mission-kind").textContent = MISSION_NAME[v.started?.template] || "Mission";
+  const pending = v.approval && v.approval.approval !== v.approvalResolved?.approval;
+  const [label, state] = streamIssue ? [streamIssue, "warn"] : v.failed ? ["Failed", "bad"] : v.finished ? ["Completed", "ok"]
+    : pending ? [REPLAY ? "Recorded approval" : "Awaiting approval", "warn"]
+    : v.started ? [playback ? "Playing recording" : "Running", "acc"] : [REPLAY ? "Loading recording" : "Queued", "acc"];
+  const indicator = $("#mission-state");
+  if (indicator.textContent !== label) indicator.textContent = label;
+  indicator.className = `pill ${state}`;
+  for (const button of document.querySelectorAll("[data-jump]")) button.hidden = !document.getElementById(button.dataset.jump);
+  $("#skip-replay").hidden = !playback;
+}
+
+function card(stage, title, body, { cls = "", meta = "", tag = "", id = "" } = {}) {
+  return `<article class="card ${cls}"${id ? ` id="${id}" tabindex="-1"` : ""}><div class="card-head"><h3><span class="stage">${esc(stage)}</span>${title}</h3>${tag}</div>
     ${meta ? `<div class="meta">${meta}</div>` : ""}${body}</article>`;
 }
 const tape = (text) => `<span class="tape"><span>${esc(text)}</span></span>`;
 
 function emptyState() {
-  return `<div class="empty"><h1>Agents that do real work without touching your systems.</h1>
-    <p>Start a mission on the left: the Analyst writes and runs code on your data, the Operator drives a browser on vendor websites. Every step happens in the open:</p>
-    <ol>
-      <li>Untrusted text, from files or web pages, is screened, and anything addressed to AI agents is quarantined.</li>
-      <li>A planner on Vultr Serverless Inference turns the goal into steps.</li>
-      <li>A decision model scores the risk of every step and every click; the policy runs it, asks a human, or blocks it.</li>
-      <li>Code and the browser run in fresh microVMs with their own kernel, no network beyond what the mission needs, and no real credentials.</li>
-      <li>A second model checks the result, then the VM is destroyed.</li>
-      <li>The mission ends with a hash-chained, signed receipt you can verify here.</li>
-    </ol></div>`;
+  return `<div class="empty workspace-intro">
+    <p class="eyebrow">${REPLAY ? "Mission archive" : "Mission control"}</p>
+    <h1>${REPLAY ? "Replay a sandbox mission" : "Run an agent in a microVM"}</h1>
+    <p>${REPLAY ? "Play a recorded mission or open its finished run from the list. Each receipt can be checked in this browser."
+      : "Choose a mission to watch Glovebox execute code or drive Chromium with restricted network access and a record of each action."}</p>
+    <dl class="mission-guide">
+      <div><dt>01 <b>Analyst</b></dt><dd>Audit 401 vendor payments and inspect the spend chart.</dd></div>
+      <div><dt>02 <b>Operator</b></dt><dd>Compare three carts and review the purchase request before submission.</dd></div>
+      <div><dt>03 <b>Red Team</b></dt><dd>See which controls contain 12 attacks against the sandbox.</dd></div>
+    </dl></div>`;
 }
 
 function timeline(v) {
@@ -382,7 +449,7 @@ function quarantineCard(v) {
     + q.map((c) => `<div class="excerpt"><span class="pill warn">p = ${Number(c.probability).toFixed(2)}</span> ${esc((c.rows || []).join(", "))}<br><s>${esc(c.excerpt)}</s></div>`).join("")
     + (q.length ? `<p class="muted">The planner and the coder see "[quarantined by Glovebox: text addressed to AI agents]" instead.</p>` : "");
   return card("Quarantine", q.length ? `${q.length} injected instruction removed` : "No injected instructions found", body,
-    { cls: q.length ? "contain" : "", tag: q.length ? tape("Containment") : "", meta: callMeta(callFor(v, "decision").slice(0, 1)) });
+    { id: v.attack ? "" : "evidence", cls: q.length ? "contain" : "", tag: q.length ? tape("Containment") : "", meta: callMeta(callFor(v, "decision").slice(0, 1)) });
 }
 
 function planCard(v) {
@@ -427,7 +494,7 @@ function attackCard(v) {
     <details data-key="attack-code"><summary>Show the attacker code</summary><pre>${esc(v.attack.code)}</pre></details>
     ${run ? `<pre>${esc(run.stdout)}</pre>` : `<p class="muted">Running…</p>`}
     ${blocked.map((c) => `<div class="excerpt">${esc(c.detail)}</div>`).join("")}`;
-  return card("Red team", "Simulated compromised model", body, { cls: "contain", tag: tape("Containment moment") });
+  return card("Red team", "Simulated compromised model", body, { id: "evidence", cls: "contain", tag: tape("Containment moment") });
 }
 
 function attemptCard(a) {
@@ -452,10 +519,11 @@ function resultCard(v) {
   const imgs = v.artifacts.map((a) => `<a href="${esc(a.url)}" target="_blank" rel="noopener"><img class="result-img" src="${esc(a.url)}" alt="${esc(a.name)}"></a>`).join("");
   const ver = v.verify ? `<p><span class="pill ${v.verify.passed ? "ok" : "bad"}">${v.verify.passed ? "verified" : "not verified"}</span>
     <span class="muted">${esc(v.verify.observed)}</span></p>` : `<p class="muted">Verifying…</p>`;
-  return card("Result", esc(summary?.summary || "Result"), metrics + imgs + ver, { meta: callMeta(callFor(v, "verifier")) });
+  return card("Result", esc(summary?.summary || "Result"), metrics + imgs + ver, { id: "result-card", meta: callMeta(callFor(v, "verifier")) });
 }
 
-const cite = (s) => s.replace(/\[(s\d+)\]/g, '<span class="cite">$1</span>');
+const inline = (s) => s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/\[(s\d+)\]/g, '<span class="cite">$1</span>');
 
 function formatAnswer(text) {
   let html = "";
@@ -463,17 +531,18 @@ function formatAnswer(text) {
   for (const line of esc(text).split("\n")) {
     if (/^\s*-\s+/.test(line)) {
       if (!inList) { html += "<ul>"; inList = true; }
-      html += `<li>${cite(line.replace(/^\s*-\s+/, ""))}</li>`;
+      html += `<li>${inline(line.replace(/^\s*-\s+/, ""))}</li>`;
       continue;
     }
     if (inList) { html += "</ul>"; inList = false; }
-    html += /^Contained:/.test(line.trim()) ? `<span class="contained-line">${cite(line)}</span>` : `${cite(line)}\n`;
+    html += /^Contained:/.test(line.trim()) ? `<span class="contained-line">${inline(line)}</span>` : `${inline(line)}\n`;
   }
   return html + (inList ? "</ul>" : "");
 }
 
 function answerCard(v) {
-  return card("Answer", "What Glovebox found", `<div class="answer">${formatAnswer(v.answer)}</div>`, { cls: "good", meta: callMeta(callFor(v, "explainer")) });
+  const id = v.started?.template === "operator" || !(v.artifacts.length || v.verify) ? "result-card" : "";
+  return card("Answer", "What Glovebox found", `<div class="answer">${formatAnswer(v.answer)}</div>`, { id, cls: "good", meta: callMeta(callFor(v, "explainer")) });
 }
 
 function receiptCard(v) {
@@ -482,21 +551,30 @@ function receiptCard(v) {
   return card("Receipt", "Signed record of everything that ran",
     `<dl class="kv"><dt>Records</dt><dd>${r.records}</dd><dt>Chain head</dt><dd>${esc(r.chain_head)}</dd><dt>Signing key</dt><dd>Ed25519 · ${esc(r.key_id)}</dd></dl>
      <div class="verify-row"><button type="button" id="verify-btn">Verify receipt</button><button type="button" id="tamper-btn">Tamper with one record</button>
-     <a class="ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Open JSON</a></div><div class="verify-out">${checks}</div>`);
+     <a class="ghost" href="${esc(r.url)}" target="_blank" rel="noopener">Open JSON</a></div><div class="verify-out" role="status">${checks}</div>`, { id: "receipt-card" });
 }
 
 function bindReceipt(v) {
   if (!v.receipt) return;
-  const fetchReceipt = () => getJSON(v.receipt.url);
-  const check = async (mutate) => {
-    const receipt = await fetchReceipt();
-    const label = mutate ? mutate(receipt) : "Original receipt";
-    const res = await getJSON("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) });
-    receiptChecks.push({ label, ...res });
-    render();
+  const check = async (button, mutate) => {
+    const mission = current;
+    button.disabled = true;
+    try {
+      const receipt = await getJSON(v.receipt.url);
+      const label = mutate ? mutate(receipt) : "Original receipt";
+      const res = await getJSON("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) });
+      if (mission !== current) return;
+      receiptChecks.push({ label, ...res });
+      render();
+      document.getElementById(button.id)?.focus({ preventScroll: true });
+    } catch (error) {
+      if (mission === current) $(".verify-out").textContent = `Could not verify the receipt. ${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
   };
-  $("#verify-btn")?.addEventListener("click", () => check());
-  $("#tamper-btn")?.addEventListener("click", () => check((rec) => {
+  $("#verify-btn")?.addEventListener("click", (e) => check(e.currentTarget));
+  $("#tamper-btn")?.addEventListener("click", (e) => check(e.currentTarget, (rec) => {
     const failed = rec.records.find((x) => x.kind === "exec" && x.exit_code !== 0);
     const approval = rec.records.find((x) => x.kind === "approval");
     if (failed) { failed.exit_code = 0; return "After marking the failed run as passed"; }
@@ -529,11 +607,11 @@ function redteamView(v) {
   const loads = v.host.map((h) => h.load1);
   const host = loads.length ? `sandbox host load ${loads[0].toFixed(2)} → peak ${Math.max(...loads).toFixed(2)} on ${v.host[v.host.length - 1].cpus} CPUs` : "";
   const secs = v.rt ? ` · ${((Date.parse(v.rt.ts) - Date.parse(v.started.ts)) / 1000).toFixed(1)} s` : "";
-  const head = `<article class="card score-card"><div class="score ${escaped ? "bad" : ""}">${contained}<small>/${list.length}</small></div>
+  const head = `<article class="card score-card" id="result-card" tabindex="-1"><div class="score ${escaped ? "bad" : ""}">${contained}<small>/${list.length}</small></div>
     <div class="score-meta"><h3>${esc(headline)}</h3>
       <div class="segments">${list.map((a) => `<i class="${(STATE[a.state] || STATE.wait)[0]}" title="${esc(a.name)}"></i>`).join("")}</div>
       <div class="meta">Each attack runs in its own fresh microVM${esc(host ? " · " + host : "")}${secs}</div></div></article>`;
-  return head + `<div class="attack-grid">${list.map(attackTile).join("")}</div>`
+  return head + `<div class="attack-grid" id="evidence" tabindex="-1">${list.map(attackTile).join("")}</div>`
     + (v.failed ? card("Failed", "Run stopped", `<pre class="err">${esc(v.failed.error)}</pre>`, { cls: "fail" }) : "")
     + (v.receipt ? receiptCard(v) : "");
 }
@@ -555,7 +633,7 @@ function operatorView(v) {
     cards.push(stepCard(s));
     if (v.detour?.sim.step === id) cards.push(detourCard(v.detour));
     const asked = s.actions.find((r) => r.approval);
-    if (asked) cards.push(approvalCard(asked));
+    if (asked) cards.push(approvalCard(asked, asked.approval.approval === v.approval?.approval));
   }
   for (const s of v.skipped) cards.push(card("Skipped", `Step ${esc(s.step)}`, `<p>${esc(s.reason)}</p>`));
   if (v.browserBox) cards.push(browserCard(v));
@@ -603,7 +681,7 @@ function stepCard(s) {
     <p class="muted">Removed before the browser actor read the page; it sees "[quarantined by Glovebox: text addressed to AI agents]" instead.</p></div>` : "";
   const facts = s.result?.facts?.length ? `<dl class="kv facts">${s.result.facts.map((f) => `<dt>${esc(f.name)}</dt><dd>${esc(f.value)}</dd>`).join("")}</dl>` : "";
   const checked = s.verify ? `<p class="muted">Verifier: ${esc(s.verify.observed)}</p>` : "";
-  return card(`Step ${s.step}`, esc(s.intent || ""), `<div class="sbx">${allow}${s.irreversible ? `<span class="pill warn">irreversible</span>` : ""}</div>
+  return card(`Step ${s.step}`, esc(s.intent || s.result?.intent || "Browser step"), `<div class="sbx">${allow}${s.irreversible ? `<span class="pill warn">irreversible</span>` : ""}</div>
     <ol class="acts">${s.actions.map(actionRow).join("")}</ol>${quarantine}${facts}${checked}`,
     { cls: st === "done" ? "good" : st === "running" ? "" : "fail", tag, meta: s.result ? `${s.result.turns} actor turns` : "" });
 }
@@ -613,18 +691,18 @@ function detourCard(d) {
   return card("Red team", "The detour the hidden note asks for", `<p>The red-team switch is on, so Glovebox also tries what an actor fooled by Northgate's hidden note would do next: <code>goto ${esc(d.sim.action.target)}</code></p>
     ${d.gate ? bars(d.gate.probs, []) + `<p><span class="pill bad">blocked</span> <span class="muted">${(d.gate.reasons || []).map(esc).join(" · ")}</span></p>` : ""}
     ${d.result ? `<p>Then it runs anyway, inside the browser VM, to test the next layer:</p><ul class="evidence">${d.result.evidence.map((x) => `<li>${esc(x)}</li>`).join("")}</ul><div class="shots">${shots}</div>`
-    : `<p class="muted">Running it anyway inside the browser VM…</p>`}`, { cls: "contain", tag: tape("Containment moment") });
+    : `<p class="muted">Running it anyway inside the browser VM…</p>`}`, { id: "evidence", cls: "contain", tag: tape("Containment moment") });
 }
 
-function approvalCard(r) {
+function approvalCard(r, latest) {
   const e = r.approval;
-  const [cls, label] = r.approved === undefined ? ["warn", "waiting for you"] : r.approved ? ["ok", "approved"] : ["bad", "rejected"];
-  const buttons = r.approved === undefined ? `<div class="verify-row"><button type="button" data-approve="0" data-id="${esc(e.approval)}">Reject</button>
+  const [cls, label] = r.approved === undefined ? ["warn", REPLAY ? "recorded request" : "waiting for you"] : r.approved ? ["ok", "approved"] : ["bad", "rejected"];
+  const buttons = !REPLAY && r.approved === undefined ? `<div class="verify-row"><button type="button" data-approve="0" data-id="${esc(e.approval)}">Reject</button>
     <button type="button" class="approve" data-approve="1" data-id="${esc(e.approval)}">Approve</button></div>` : "";
   return card("Approval", "A human decides", `<p>Step ${esc(e.step)} wants to <b>${esc(e.action?.type)} ${esc(e.action?.target)}</b> on ${esc(hostOf(e.action?.page))}. The policy never runs this on its own.</p>
     ${(e.reasons || []).length ? `<ul class="evidence">${e.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}${bars(e.probs || {})}
     ${e.screenshot ? `<img class="result-img" src="${esc(e.screenshot)}" width="1280" height="800" alt="The page this action would submit">` : ""}${buttons}`,
-    { cls: r.approved === false ? "fail" : r.approved ? "good" : "contain", tag: `<span class="pill ${cls}">${label}</span>` });
+    { id: latest ? "approval-card" : "", cls: r.approved === false ? "fail" : r.approved ? "good" : "contain", tag: `<span class="pill ${cls}">${label}</span>` });
 }
 
 function browserCard(v) {
@@ -646,6 +724,7 @@ function quotesCard(v) {
   const rows = [];
   for (const id of v.opOrder) {
     const s = v.ops[id];
+    if (!s.verify?.passed) continue;
     const f = Object.fromEntries((s.result?.facts || []).map((x) => [x.name.toLowerCase().replace(/_/g, " "), x.value]));
     if ("form" in f || "purchase request" in f) continue;
     const totalKey = Object.keys(f).find((k) => k.includes("total") && !k.includes("sub") && !k.includes("line"));
@@ -654,12 +733,14 @@ function quotesCard(v) {
       rows.push({ id, vendor, unit: f["unit price"] || "", shipping: f.shipping || "", total: f[totalKey], n: money(f[totalKey]) });
     }
   }
-  if (rows.length < 2) return "";
-  const best = Math.min(...rows.map((r) => r.n));
-  return card("Quotes", "Delivered price for the order", `<table class="quotes"><thead><tr><th>Vendor</th><th>Unit price</th><th>Shipping</th><th>Order total</th><th></th></tr></thead>
-    <tbody>${rows.map((r) => `<tr class="${r.n === best ? "best" : ""}"><td>${esc(r.vendor)}</td><td>${esc(r.unit)}</td><td>${esc(r.shipping)}</td><td><b>${esc(r.total)}</b></td>
-      <td><span class="cite">${esc(r.id)}</span>${r.n === best ? ` <span class="pill ok">cheapest</span>` : ""}</td></tr>`).join("")}</tbody></table>
-    <p class="muted">Totals as the browser actor read them from each cart, including shipping.</p>`);
+  if (!rows.length) return "";
+  const complete = Object.values(names).every((name) => rows.some((r) => r.vendor === name));
+  const best = complete ? Math.min(...rows.map((r) => r.n)) : null;
+  const unitPrices = rows.some((row) => row.unit);
+  return card("Quotes", "Verified cart totals", `<div class="table-scroll" tabindex="0" role="region" aria-label="Vendor quotes"><table class="quotes"><thead><tr><th>Vendor</th>${unitPrices ? "<th>Unit price</th>" : ""}<th>Shipping</th><th>Order total</th><th>Step</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr class="${r.n === best ? "best" : ""}"><td>${esc(r.vendor)}</td>${unitPrices ? `<td>${esc(r.unit) || "—"}</td>` : ""}<td>${esc(r.shipping) || "—"}</td><td><b>${esc(r.total)}</b></td>
+      <td><span class="cite">${esc(r.id)}</span>${r.n === best ? ` <span class="pill ok">cheapest</span>` : ""}</td></tr>`).join("")}</tbody></table></div>
+    <p class="muted">${complete ? "Order totals include shipping." : "Waiting for a verified quote from every approved vendor before marking the lowest total."}</p>`, { id: "quotes-card" });
 }
 
 function blast(v) {
@@ -749,10 +830,12 @@ function drawSpark() {
 // ------------------------------------------------------------------ approvals
 
 let pendingApproval = null;
+let sendingApproval = false;
 
 function showApproval(e) {
   if (events.some((x) => x.type === "approval.resolved" && x.approval === e.approval)) return;
   pendingApproval = e.approval;
+  $("#approval-error").hidden = true;
   const a = e.action || {};
   $("#approval-body").innerHTML = (a.target
     ? `<p>Step ${esc(e.step)} wants to <b>${esc(a.type)} ${esc(a.target)}</b>${a.page ? ` on ${esc(hostOf(a.page))}` : ""}. The policy never runs this on its own.</p>`
@@ -760,17 +843,30 @@ function showApproval(e) {
     + ((e.reasons || []).length ? `<ul class="evidence">${e.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : "")
     + (e.screenshot ? `<img class="result-img" src="${esc(e.screenshot)}" width="1280" height="800" alt="The page this action would submit">` : "")
     + bars(e.probs || {});
-  $("#approval").showModal();
+  if (!$("#approval").open) $("#approval").showModal();
 }
 
 async function answerApproval(approve, id = pendingApproval) {
-  if (!id) return;
+  if (!id || sendingApproval) return;
+  const mission = current;
+  sendingApproval = true;
+  $("#approve").disabled = $("#reject").disabled = true;
   try {
-    await getJSON(`/api/missions/${encodeURIComponent(current)}/approvals/${encodeURIComponent(id)}`, {
+    await getJSON(`/api/missions/${encodeURIComponent(mission)}/approvals/${encodeURIComponent(id)}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approve }) });
+    if (mission === current && pendingApproval === id) {
+      pendingApproval = null;
+      if ($("#approval").open) $("#approval").close();
+    }
+  } catch (error) {
+    if (mission !== current) return;
+    const alert = $("#approval-error");
+    alert.textContent = `Could not send your decision. ${error.message}`;
+    alert.hidden = false;
+    if (!$("#approval").open && pendingApproval === id) $("#approval").showModal();
   } finally {
-    pendingApproval = null;
-    if ($("#approval").open) $("#approval").close();
+    sendingApproval = false;
+    $("#approve").disabled = $("#reject").disabled = false;
   }
 }
 

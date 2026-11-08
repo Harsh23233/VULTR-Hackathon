@@ -1,0 +1,62 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b1312;
+  --panel: #13201c;
+  --line: #2b4038;
+  --ink: #eff5f2;
+  --muted: #a5bab1;
+  --accent: #70dcca;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 16px/1.55 system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(ellipse at 62% 0%, #1b3128 0, transparent 750px); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+a:focus-visible, video:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.shell { width: min(1220px, calc(100% - 64px)); margin-inline: auto; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 22px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); font-size: 20px; font-weight: 750; }
+.brand svg { width: 31px; height: 31px; fill: transparent; stroke: var(--accent); stroke-width: 2.5; }
+.top nav { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.top nav a { color: var(--muted); font-size: 14px; font-weight: 600; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); align-items: center; gap: clamp(24px, 5vw, 70px); padding-block: 75px 64px; }
+.eyebrow { margin: 0; font: 600 11px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+h1, h2, h3 { margin: 0; line-height: 1.04; letter-spacing: -.04em; }
+h1 { margin-block: 14px 20px; font-size: clamp(42px, 5.6vw, 82px); max-width: 13ch; }
+h2 { margin-block: 10px 16px; font-size: clamp(32px, 4vw, 52px); }
+h3 { font-size: 26px; letter-spacing: -.025em; }
+.intro { color: var(--muted); margin: 0 0 22px; max-width: 50ch; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 15px; border: 1px solid var(--line); border-radius: 8px; font-weight: 700; font-size: 14px; }
+.button:hover { text-decoration: none; border-color: var(--accent); }
+.primary { background: var(--accent); color: #071b16; }
+.primary:hover { background: #a1eddf; }
+.secondary { color: var(--ink); background: var(--panel); }
+.preview { margin: 0; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 20px 55px #050a0890; }
+.preview figcaption { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 5px 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.preview strong { font-size: 13px; color: var(--ink); }
+.preview img { display: block; width: 100%; height: auto; }
+.section { padding-block: 42px; border-top: 1px solid var(--line); scroll-margin-top: 14px; }
+.missions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+.mission { display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; }
+.mission:hover { text-decoration: none; border-color: var(--accent); background: #192c24; }
+.mission p { color: var(--muted); margin: 0 0 6px; }
+.card-link { color: var(--accent); font-weight: 650; font-size: 14px; margin-top: auto; }
+.media { display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr); gap: 30px; align-items: center; }
+video { width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); display: block; }
+.footer { border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 20px; align-items: center; color: var(--muted); padding-block: 20px 28px; font-size: 14px; }
+.footer p { margin: 0; }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; padding-block: 44px; }
+  .hero h1 { max-width: 19ch; }
+}
+@media (max-width: 650px) {
+  .shell { width: calc(100% - 32px); }
+  .top { flex-wrap: wrap; padding-block: 14px; }
+  .top nav { gap: 8px 14px; }
+  .section { padding-block: 30px; }
+  .missions, .media { grid-template-columns: 1fr; }
+}

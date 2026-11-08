@@ -7,53 +7,64 @@ window.GLOVEBOX_REPLAY = true;
 const REPLAY_SPEED = 1.5;
 const GENESIS = "0".repeat(64);
 
+async function readReplay(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Recording could not be loaded (${response.status}).`);
+  return response.json();
+}
+
 async function replayGet(url, opts = {}) {
   const method = (opts.method || "GET").toUpperCase();
-  if (url === "/api/status") return (await fetch("data/status.json")).json();
-  if (url === "/api/missions" && method === "GET") return (await fetch("data/missions.json")).json();
+  if (url === "/api/status") return readReplay("data/status.json");
+  if (url === "/api/missions" && method === "GET") return readReplay("data/missions.json");
   if (url === "/api/missions" && method === "POST") {
     const want = JSON.parse(opts.body || "{}").template || "analyst";
-    const list = await (await fetch("data/missions.json")).json();
+    const list = await readReplay("data/missions.json");
     const found = list.find((m) => m.template === want);
     if (!found) throw new Error("This replay has no recorded run of that mission.");
     return { id: found.id };
   }
-  if (url === "/api/verify") return verifyReceipt(JSON.parse(opts.body));
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(r.statusText);
-  return r.json();
+  if (url === "/api/verify") {
+    const archive = await readReplay("data/status.json");
+    return verifyReceipt(JSON.parse(opts.body), archive.replay_signing_keys || [archive.signing_key?.public_key]);
+  }
+  return readReplay(url);
 }
 
 // Stands in for EventSource: plays the recorded events back with their original spacing, sped up and capped.
-function replaySource(id) {
-  const src = { onmessage: null, onerror: null, closed: false, close() { this.closed = true; } };
-  fetch(`data/${encodeURIComponent(id)}/events.json`).then((r) => r.json()).then(async (list) => {
+function replaySource(id, play) {
+  const src = { onmessage: null, onerror: null, closed: false, close() { this.closed = true; }, finish() { play = false; } };
+  readReplay(`data/${encodeURIComponent(id)}/events.json`).then(async (list) => {
     let prev = null;
     for (const e of list) {
       if (src.closed) return;
-      const gap = prev ? Math.min(Math.max(Date.parse(e.ts) - Date.parse(prev.ts), 0), 700) / REPLAY_SPEED : 0;
+      const gap = play && prev ? Math.min(Math.max(Date.parse(e.ts) - Date.parse(prev.ts), 0), 700) / REPLAY_SPEED : 0;
       prev = e;
       if (gap) await new Promise((done) => setTimeout(done, gap));
       if (!src.closed && src.onmessage) src.onmessage({ data: JSON.stringify(e) });
     }
-  }).catch(() => src.onerror && src.onerror());
+  }).catch(() => { if (!src.closed) src.onerror?.(); });
   return src;
 }
 
 function replayChips(status) {
-  return [`<span class="chip"><span class="dot"></span>Replay <b>recorded runs</b></span>`,
-    `<span class="chip"><span class="dot ok"></span>Real microVMs <b>${esc(status.runner?.guest_arch || "")}</b></span>`,
-    `<span class="chip">Receipts <b>Ed25519 · ${esc(status.signing_key?.key_id)}</b> · checked in your browser</span>`].join("");
+  return [`<span class="chip"><span class="dot ok"></span>Replay <b>${status.inference === "vultr" ? "recorded on Vultr" : "recorded test runs"}</b></span>`,
+    `<span class="chip">Receipts <b>verified in this browser</b></span>`].join("");
 }
 
-function replayBanner() {
+function replayBanner(status) {
   const banner = $("#testmode");
-  banner.innerHTML = `<b>Replay.</b> These missions were recorded on real Microsandbox microVMs, with scripted AI answers:
-    our Vultr credits ran out before we could deploy. Every receipt is checked in your browser.
-    Code: <a href="https://github.com/Harsh23233/VULTR-Hackathon">github.com/Harsh23233/VULTR-Hackathon</a>`;
+  banner.innerHTML = `<b>Read-only replay.</b> ${status.inference === "vultr" ? "The latest recordings ran on Vultr. Earlier test runs are labeled Scripted."
+    : "These test runs used real microVMs with scripted model responses."}
+    <a href="https://glovebox.149-28-8-192.sslip.io/">Run a new mission on Vultr ↗</a>`;
   banner.hidden = false;
-  $("#run").textContent = "Play the recorded run";
-  $("#redteam").textContent = "Replay the Red Team";
+  $("#goal").readOnly = true;
+  for (const input of document.querySelectorAll(".toggle")) input.hidden = true;
+  $("#launcher-label").textContent = "Play a recording";
+  $("#redteam").textContent = "Play Red Team";
+  $("#history-label").textContent = "Recorded missions";
+  $("#project-link").href = "../";
+  $("#project-link").textContent = "Project home";
 }
 
 // ---------------------------------------------------------------- receipts, as receipts.py checks them
@@ -82,8 +93,9 @@ async function sha256(text) {
 const toHex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
-async function verifyReceipt(receipt) {
+async function verifyReceipt(receipt, trustedKeys) {
   try {
+    if (!trustedKeys.includes(receipt.signature?.public_key)) return { valid: false, reason: "the signer is outside this archive" };
     let prev = GENESIS;
     for (const record of receipt.records) {
       const { hash, ...body } = record;
